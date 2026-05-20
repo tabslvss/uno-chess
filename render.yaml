@@ -17,4 +17,4 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://uno-chess.vercel.app

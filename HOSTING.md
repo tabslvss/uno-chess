@@ -22,41 +22,34 @@ Avoid trying to put Socket.io on Vercel serverless — it will not work.
 
 ## Step-by-step (about 10 minutes)
 
-### 1. Put the code on GitHub
+### 1. GitHub (done)
 
-In PowerShell, from `D:\Projects\UnoChess`:
-
-```powershell
-git init
-git add .
-git commit -m "UNO Chess"
-```
-
-Create a new repo on https://github.com/new (name it `uno-chess`), then:
-
-```powershell
-git remote add origin https://github.com/YOUR_USERNAME/uno-chess.git
-git branch -M main
-git push -u origin main
-```
+Repo: **https://github.com/tabslvss/uno-chess**
 
 ### 2. Deploy the game API on Render
 
-1. Go to https://dashboard.render.com and sign up (free).
-2. Click **New +** → **Blueprint**.
-3. Connect GitHub and select your `uno-chess` repo.
-4. Render reads `render.yaml` and creates **unochess-api**.
-5. When prompted, set these **secret** variables:
+**Option A — CLI (recommended)**
+
+From `D:\Projects\UnoChess`:
+
+```powershell
+.\scripts\setup-render.ps1
+```
+
+This installs the [Render CLI](https://github.com/render-oss/cli), logs you in, creates **unochess-api** from the repo, reads Supabase keys from `.env`, and sets `VITE_SERVER_URL` on Vercel.
+
+**Option B — one-click Blueprint**
+
+1. Open: https://render.com/deploy?repo=https://github.com/tabslvss/uno-chess  
+2. Connect GitHub and approve the blueprint.
+3. When prompted, set **only** these secrets (`ALLOWED_ORIGINS` is already in `render.yaml`):
 
    | Variable | Value |
    |----------|--------|
    | `SUPABASE_URL` | Same as in your `.env` file |
    | `SUPABASE_SERVICE_ROLE_KEY` | From Supabase → Settings → API → `service_role` |
-   | `ALLOWED_ORIGINS` | `https://uno-chess.vercel.app` |
 
-6. Click **Apply** and wait until status is **Live**.
-7. Copy your API URL, e.g. `https://unochess-api.onrender.com`  
-   Test in browser: `https://unochess-api.onrender.com/health` → should show `{"ok":true}`.
+4. Wait until status is **Live**, then test: `https://unochess-api.onrender.com/health` → `{"ok":true}`.
 
 ### 3. Tell Vercel where the API is
 

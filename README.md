@@ -44,3 +44,16 @@ state = UnoChess.apply(state, { type: 'playCard', cardId: '...' }).state;
 - chess.js + react-chessboard
 - Socket.io (multiplayer)
 - Zustand + Framer Motion
+
+## Deploy
+
+| Piece | Host |
+|-------|------|
+| Website | [Vercel](https://uno-chess.vercel.app) |
+| Game API | [Render](https://render.com) |
+| Auth / DB | Supabase |
+
+- **GitHub:** https://github.com/tabslvss/uno-chess  
+- **Production setup:** see [HOSTING.md](./HOSTING.md) and [DEPLOY.md](./DEPLOY.md)  
+- **Render CLI:** `.\scripts\setup-render.ps1`  
+- **Deploy API button:** [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/tabslvss/uno-chess)

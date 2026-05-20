@@ -5,9 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/health': { target: 'http://localhost:3001' },
-      '/socket.io': {
-        target: 'http://localhost:3001',
+      '/parties': {
+        target: 'http://127.0.0.1:1999',
+        changeOrigin: true,
         ws: true,
       },
     },

@@ -1,0 +1,8 @@
+{
+  "name": "unochess",
+  "main": "party/index.ts",
+  "compatibilityDate": "2024-10-01",
+  "vars": {
+    "ALLOWED_ORIGINS": "https://uno-chess.vercel.app,http://localhost:5173"
+  }
+}

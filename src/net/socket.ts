@@ -1,42 +1,55 @@
-import { io, type Socket } from 'socket.io-client';
+import PartySocket from 'partysocket';
 import type { GameAction, GameState, Player, GameResult } from '../game/types';
 import { supabase } from '../lib/supabase';
 
-const URL = import.meta.env.VITE_SERVER_URL ?? '';
+const PARTYKIT_HOST = (import.meta.env.VITE_PARTYKIT_HOST ?? '').replace(/^https?:\/\//, '');
+const PARTY_NAME = 'main';
+const PARTY_ROOM = 'global';
 const ACK_TIMEOUT_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 20_000;
-const CONNECT_RETRIES = 5;
-const RETRY_DELAY_MS = 500;
 const DEBUG = true;
 
 function log(...args: unknown[]): void {
   if (DEBUG) console.log('[net]', ...args);
 }
 
-let socket: Socket | null = null;
-let warmPromise: Promise<boolean> | null = null;
-let preconnectPromise: Promise<void> | null = null;
-let preferWebSocketOnly = false;
-let matchmakingWarmInterval: ReturnType<typeof setInterval> | null = null;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+function resolveHost(): string {
+  if (PARTYKIT_HOST) return PARTYKIT_HOST;
+  if (import.meta.env.DEV) return `${window.location.hostname}:${window.location.port}`;
+  return '';
 }
 
 function healthUrl(): string {
-  return URL ? `${URL.replace(/\/$/, '')}/health` : '/health';
+  const host = resolveHost();
+  if (!host) return '/parties/main/global/health';
+  const proto = import.meta.env.DEV ? 'http' : 'https';
+  return `${proto}://${host}/parties/${PARTY_NAME}/${PARTY_ROOM}/health`;
+}
+
+let socket: PartySocket | null = null;
+let warmPromise: Promise<boolean> | null = null;
+let preconnectPromise: Promise<void> | null = null;
+let matchmakingWarmInterval: ReturnType<typeof setInterval> | null = null;
+
+const eventHandlers = new Map<string, Set<(data: unknown) => void>>();
+const pendingRpc = new Map<
+  string,
+  { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
+>();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function pingHealthOnce(timeoutMs = 8_000): Promise<boolean> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(healthUrl(), {
-      signal: ctrl.signal,
-      mode: 'cors',
-      credentials: 'omit',
-    });
-    return res.ok;
+    const res = await fetch(healthUrl(), { signal: ctrl.signal, mode: 'cors', credentials: 'omit' });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { ok?: boolean; partykit?: boolean; matchmaker?: number };
+    log('health', data);
+    return Boolean(data.ok);
   } catch {
     return false;
   } finally {
@@ -44,32 +57,24 @@ async function pingHealthOnce(timeoutMs = 8_000): Promise<boolean> {
   }
 }
 
-/** Wake Render / verify API — safe to call repeatedly. */
 export function warmGameServer(force = false): Promise<boolean> {
-  if (!URL && import.meta.env.PROD) return Promise.resolve(false);
+  const host = resolveHost();
+  if (!host && import.meta.env.PROD) return Promise.resolve(false);
   if (force) warmPromise = null;
   warmPromise ??= (async () => {
-    for (let i = 0; i < 4; i++) {
-      if (await pingHealthOnce(i === 0 ? 6_000 : 12_000)) return true;
-      if (i < 3) await sleep(1_500);
+    for (let i = 0; i < 3; i++) {
+      if (await pingHealthOnce(i === 0 ? 5_000 : 10_000)) return true;
+      if (i < 2) await sleep(800);
     }
     return false;
   })();
   return warmPromise;
 }
 
-/** Keep API warm while the tab is open (Render free tier sleeps after ~15 min idle). */
 export function startServerKeepAlive(): () => void {
   void warmGameServer();
-  const onVisible = () => {
-    if (document.visibilityState === 'visible') void warmGameServer(true);
-  };
-  document.addEventListener('visibilitychange', onVisible);
-  const interval = setInterval(() => void warmGameServer(true), 8 * 60 * 1000);
-  return () => {
-    document.removeEventListener('visibilitychange', onVisible);
-    clearInterval(interval);
-  };
+  const interval = setInterval(() => void warmGameServer(true), 5 * 60 * 1000);
+  return () => clearInterval(interval);
 }
 
 async function accessToken(): Promise<string> {
@@ -80,85 +85,97 @@ async function accessToken(): Promise<string> {
   return token;
 }
 
-export function getSocket(): Socket {
+function dispatchMessage(raw: MessageEvent): void {
+  let msg: { type: string; id?: string; name?: string; data?: unknown; result?: unknown; error?: string };
+  try {
+    msg = JSON.parse(String(raw.data));
+  } catch {
+    return;
+  }
+  if (msg.type === 'rpc' && msg.id) {
+    const pending = pendingRpc.get(msg.id);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingRpc.delete(msg.id);
+    if (msg.error) pending.reject(new Error(msg.error));
+    else pending.resolve(msg.result);
+    return;
+  }
+  if (msg.type === 'event' && msg.name) {
+    log('event', msg.name, msg.data);
+    const set = eventHandlers.get(msg.name);
+    set?.forEach((cb) => cb(msg.data));
+  }
+}
+
+function getSocket(): PartySocket {
   if (!socket) {
-    socket = io(URL, {
-      autoConnect: false,
-      transports: preferWebSocketOnly ? ['websocket'] : ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 300,
-      reconnectionDelayMax: 1_500,
-      timeout: CONNECT_TIMEOUT_MS,
+    const host = resolveHost();
+    if (!host && import.meta.env.PROD) {
+      throw new Error('Online play is not set up. Add VITE_PARTYKIT_HOST on Vercel.');
+    }
+    socket = new PartySocket({
+      host,
+      party: PARTY_NAME,
+      room: PARTY_ROOM,
+      query: async () => ({ token: await accessToken() }),
     });
+    socket.addEventListener('message', dispatchMessage);
+    socket.addEventListener('open', () => log('party connected', socket?.id));
+    socket.addEventListener('close', () => log('party disconnected'));
+    socket.addEventListener('error', () => log('party error'));
   }
   return socket;
 }
 
 function connectOnce(token: string): Promise<void> {
   const s = getSocket();
-  s.auth = { token };
+  s.updateProperties({ query: { token } });
 
-  if (s.connected) return Promise.resolve();
+  if (s.readyState === WebSocket.OPEN) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
     let settled = false;
-
-    const onConnect = () => {
+    const onOpen = () => {
       if (settled) return;
       settled = true;
-      preferWebSocketOnly = true;
-      log('socket connected', { id: s.id, transport: s.io.engine.transport.name });
       cleanup();
       resolve();
     };
-
-    const onError = (err: Error) => {
+    const onError = () => {
       if (settled) return;
       settled = true;
-      log('socket connect_error', err?.message);
       cleanup();
-      s.disconnect();
-      reject(err);
+      reject(new Error('Connection failed'));
     };
-
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
       cleanup();
-      s.disconnect();
       reject(new Error('Connection timed out'));
     }, CONNECT_TIMEOUT_MS);
 
     const cleanup = () => {
       clearTimeout(timer);
-      s.off('connect', onConnect);
-      s.off('connect_error', onError);
+      s.removeEventListener('open', onOpen);
+      s.removeEventListener('error', onError);
     };
 
-    s.on('connect', onConnect);
-    s.on('connect_error', onError);
-    s.connect();
+    s.addEventListener('open', onOpen);
+    s.addEventListener('error', onError);
+    s.reconnect();
   });
 }
 
 function connectionError(err: unknown): Error {
-  if (!URL && import.meta.env.PROD) {
-    return new Error(
-      'Online play is not set up yet. Add VITE_SERVER_URL on Vercel (see HOSTING.md).',
-    );
-  }
-  if (!URL) {
-    return new Error('Game server is not running. Run: npm run dev');
+  if (!resolveHost() && import.meta.env.PROD) {
+    return new Error('Online play is not set up yet. Set VITE_PARTYKIT_HOST on Vercel.');
   }
   const msg = err instanceof Error ? err.message.toLowerCase() : '';
-  if (msg.includes('not logged in')) {
-    return new Error('Not logged in');
-  }
+  if (msg.includes('not logged in')) return new Error('Not logged in');
   return new Error('Connecting… try again in a moment.');
 }
 
-/** Connect in background after login so Play is instant. */
 export function preconnectSocket(): Promise<void> {
   if (!preconnectPromise) {
     preconnectPromise = (async () => {
@@ -167,7 +184,7 @@ export function preconnectSocket(): Promise<void> {
         void warmGameServer();
         await connectOnce(token);
       } catch {
-        // Not logged in or server down — connectSocket will retry on Play
+        /* ignore */
       }
     })().finally(() => {
       preconnectPromise = null;
@@ -178,56 +195,39 @@ export function preconnectSocket(): Promise<void> {
 
 export async function connectSocket(): Promise<void> {
   const token = await accessToken();
-  const s = getSocket();
-
-  if (s.connected) {
-    s.auth = { token };
-    return;
-  }
-
   void warmGameServer();
-
   let lastErr: unknown;
-  for (let attempt = 0; attempt < CONNECT_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
       await connectOnce(token);
       return;
     } catch (err) {
       lastErr = err;
-      if (attempt < CONNECT_RETRIES - 1) {
-        await sleep(RETRY_DELAY_MS * (attempt + 1));
-        void warmGameServer(true);
-      }
+      if (attempt < 4) await sleep(500 * (attempt + 1));
     }
   }
   throw connectionError(lastErr);
 }
 
-function emitWithAck<T>(event: string, ...args: unknown[]): Promise<T> {
+function emitRpc<T>(method: string, ...args: unknown[]): Promise<T> {
   return new Promise((resolve, reject) => {
     const s = getSocket();
-    if (!s.connected) {
-      log(`emit ${event} blocked — not connected`);
+    if (s.readyState !== WebSocket.OPEN) {
       reject(new Error('Not connected to the game server.'));
       return;
     }
-    log(`emit ${event}`, args);
-
-    let settled = false;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      log(`emit ${event} timed out`);
-      reject(new Error('Server didn’t respond. Try again.'));
+      pendingRpc.delete(id);
+      reject(new Error("Server didn't respond. Try again."));
     }, ACK_TIMEOUT_MS);
-
-    s.emit(event, ...args, (res: T) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      log(`ack ${event}`, res);
-      resolve(res);
+    pendingRpc.set(id, {
+      resolve: (v) => resolve(v as T),
+      reject,
+      timer,
     });
+    log('rpc', method, args);
+    s.send(JSON.stringify({ type: 'rpc', id, method, args }));
   });
 }
 
@@ -236,30 +236,24 @@ export async function createRoom(): Promise<{
   color: Player;
   state: GameState;
 }> {
-  const res = await emitWithAck<
-    { roomId: string; color: Player; state: GameState } | { error: string }
-  >('createRoom');
+  const res = await emitRpc<{ roomId: string; color: Player; state: GameState } | { error: string }>(
+    'createRoom',
+  );
   if ('error' in res) throw new Error(res.error);
   if (!res?.roomId) throw new Error('Failed to create room.');
   return res;
 }
 
-export async function joinRoom(
-  roomId: string,
-): Promise<MatchedPayload> {
+export async function joinRoom(roomId: string): Promise<MatchedPayload> {
   const code = roomId.trim().toUpperCase();
   if (!code) throw new Error('Enter a room code.');
-  const res = await emitWithAck<MatchedPayload | { error: string }>('joinRoom', code);
+  const res = await emitRpc<MatchedPayload | { error: string }>('joinRoom', code);
   if ('error' in res) throw new Error(res.error);
   if (!res?.roomId) throw new Error('Failed to join room.');
-  if (!('players' in res) || !res.players) {
-    log('joinRoom ack missing players — using fallback (server likely old build)');
-    (res as MatchedPayload).players = {
-      white: { username: 'Player' },
-      black: { username: 'You' },
-    };
+  if (!res.players) {
+    res.players = { white: { username: 'Player' }, black: { username: 'You' } };
   }
-  return res as MatchedPayload;
+  return res;
 }
 
 export interface MatchPlayers {
@@ -286,48 +280,23 @@ export interface FindMatchResult {
 }
 
 export async function findMatch(): Promise<FindMatchResult> {
-  const res = await emitWithAck<FindMatchResult | { error: string }>('findMatch');
-  if (res && 'error' in res && res.error) throw new Error(res.error);
-  const out = res as FindMatchResult;
-  if (out?.players == null && out?.roomId) {
-    out.players = { white: { username: 'Player' }, black: { username: 'Opponent' } };
+  const res = await emitRpc<FindMatchResult>('findMatch');
+  if (res?.players == null && res?.roomId) {
+    res.players = { white: { username: 'Player' }, black: { username: 'Opponent' } };
   }
-  return out;
-}
-
-export function onQueueUpdate(cb: (data: { size: number }) => void): () => void {
-  const s = getSocket();
-  const wrapped = (data: { size: number }) => {
-    log('event queueUpdate', data);
-    cb(data);
-  };
-  s.on('queueUpdate', wrapped);
-  return () => s.off('queueUpdate', wrapped);
-}
-
-/** Log matchmaker version from API (confirms Render deploy). */
-export async function logServerMatchmakerVersion(): Promise<void> {
-  try {
-    const res = await fetch(healthUrl());
-    const data = (await res.json()) as { matchmaker?: number; queueSize?: number };
-    log('API health', data);
-    if (data.matchmaker == null || data.matchmaker < 3) {
-      log('WARNING: API matchmaker is old — redeploy Render (unochess-api) from latest main');
-    }
-  } catch (e) {
-    log('API health check failed', e);
-  }
+  return res;
 }
 
 export function leaveQueue(): void {
-  const s = socket;
-  if (s?.connected) s.emit('leaveQueue');
+  if (socket?.readyState === WebSocket.OPEN) {
+    void emitRpc('leaveQueue').catch(() => {});
+  }
 }
 
 export function startMatchmakingWarmup(): void {
   stopMatchmakingWarmup();
   void warmGameServer(true);
-  matchmakingWarmInterval = setInterval(() => void warmGameServer(true), 4_000);
+  matchmakingWarmInterval = setInterval(() => void warmGameServer(true), 8_000);
 }
 
 export function stopMatchmakingWarmup(): void {
@@ -338,11 +307,11 @@ export function stopMatchmakingWarmup(): void {
 }
 
 export function sendAction(roomId: string, action: GameAction): void {
-  getSocket().emit('action', { roomId: roomId.toUpperCase(), action });
+  void emitRpc('action', { roomId: roomId.toUpperCase(), action });
 }
 
 export function reportTimeout(roomId: string, loser: Player): void {
-  getSocket().emit('reportTimeout', { roomId: roomId.toUpperCase(), loser });
+  void emitRpc('reportTimeout', { roomId: roomId.toUpperCase(), loser });
 }
 
 export interface EloUpdatePayload {
@@ -353,80 +322,66 @@ export interface EloUpdatePayload {
   blackDelta: number;
 }
 
+function onEvent(name: string, cb: (data: unknown) => void): () => void {
+  if (!eventHandlers.has(name)) eventHandlers.set(name, new Set());
+  eventHandlers.get(name)!.add(cb);
+  return () => eventHandlers.get(name)?.delete(cb);
+}
+
 export function onState(cb: (state: GameState) => void): () => void {
-  const s = getSocket();
-  const wrapped = (state: GameState) => {
-    log('event state', { phase: state.phase, turn: state.currentPlayer });
-    cb(state);
-  };
-  s.on('state', wrapped);
-  return () => {
-    s.off('state', wrapped);
-  };
+  return onEvent('state', (d) => cb(d as GameState));
 }
 
 export function onMatched(cb: (data: MatchedPayload) => void): () => void {
-  const s = getSocket();
-  const wrapped = (data: MatchedPayload) => {
-    log('event matched', data);
+  return onEvent('matched', (d) => {
+    const data = d as MatchedPayload;
     if (!data.players) {
       data.players = { white: { username: 'Player' }, black: { username: 'Opponent' } };
     }
     cb(data);
-  };
-  s.on('matched', wrapped);
-  return () => {
-    s.off('matched', wrapped);
-  };
+  });
 }
 
 export function onOpponentLeft(cb: () => void): () => void {
-  const s = getSocket();
-  const wrapped = () => {
-    log('event opponentLeft');
-    cb();
-  };
-  s.on('opponentLeft', wrapped);
-  return () => {
-    s.off('opponentLeft', wrapped);
-  };
+  return onEvent('opponentLeft', () => cb());
 }
 
 export function onOpponentReconnected(cb: () => void): () => void {
-  const s = getSocket();
-  const wrapped = () => {
-    log('event opponentReconnected');
-    cb();
-  };
-  s.on('opponentReconnected', wrapped);
-  return () => {
-    s.off('opponentReconnected', wrapped);
-  };
+  return onEvent('opponentReconnected', () => cb());
+}
+
+export function onQueueUpdate(cb: (data: { size: number }) => void): () => void {
+  return onEvent('queueUpdate', (d) => cb(d as { size: number }));
 }
 
 export function onEloUpdate(cb: (data: EloUpdatePayload) => void): () => void {
-  const s = getSocket();
-  s.on('eloUpdate', cb);
-  return () => {
-    s.off('eloUpdate', cb);
-  };
+  return onEvent('eloUpdate', (d) => cb(d as EloUpdatePayload));
+}
+
+export async function logServerMatchmakerVersion(): Promise<void> {
+  try {
+    const res = await fetch(healthUrl());
+    const data = (await res.json()) as { matchmaker?: number; partykit?: boolean };
+    log('API health', data);
+    if (!data.partykit || (data.matchmaker ?? 0) < 4) {
+      log('WARNING: PartyKit API may be outdated — run partykit deploy');
+    }
+  } catch (e) {
+    log('health check failed', e);
+  }
 }
 
 export function clearAllListeners(): void {
-  const s = socket;
-  if (!s) return;
-  s.off('state');
-  s.off('matched');
-  s.off('opponentLeft');
-  s.off('opponentReconnected');
-  s.off('queueUpdate');
-  s.off('eloUpdate');
+  eventHandlers.clear();
 }
 
 export function disconnectSocket(): void {
   stopMatchmakingWarmup();
+  for (const [, p] of pendingRpc) clearTimeout(p.timer);
+  pendingRpc.clear();
   if (!socket) return;
   clearAllListeners();
-  socket.disconnect();
+  socket.close();
+  socket = null;
   preconnectPromise = null;
 }

@@ -1,54 +1,84 @@
+/* Image-only card — no border, no background, no shadow */
 .uno-card {
-  width: 62px;
-  height: 90px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255,255,255,0.12);
+  width: var(--card-width);
+  aspect-ratio: var(--card-aspect);
+  height: auto;
   position: relative;
   flex-shrink: 0;
   color: #fff;
   font-weight: 800;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-  transition: box-shadow 0.12s;
-  overflow: hidden;
+  transition: transform 0.12s, filter 0.12s;
+  overflow: visible;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
-/* Sheen overlay */
-.uno-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(145deg, rgba(255,255,255,0.12) 0%, transparent 60%);
-  pointer-events: none;
-  border-radius: inherit;
+.uno-card.has-image {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.uno-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  background: transparent;
 }
 
 .uno-card.small {
-  width: 52px;
-  height: 76px;
+  width: var(--card-width-sm);
 }
 
-/* Color themes */
-.uno-card.red    { background: #c62828; }
-.uno-card.yellow { background: #b45309; }
-.uno-card.green  { background: #15803d; }
-.uno-card.blue   { background: #1e40af; }
+.uno-card.large {
+  width: var(--card-width-lg);
+}
 
-/* Hover / Selected */
+/* Fallback colored tile (only when no PNG is found for a card) */
+.uno-card:not(.has-image) {
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  background: var(--bg-3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.uno-card:not(.has-image)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12) 0%, transparent 60%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+.uno-card.red    { background: var(--uno-red); }
+.uno-card.yellow { background: var(--uno-yellow); color: #000; }
+.uno-card.green  { background: var(--uno-green); }
+.uno-card.blue   { background: var(--uno-blue); }
+.uno-card.has-image.red,
+.uno-card.has-image.yellow,
+.uno-card.has-image.green,
+.uno-card.has-image.blue { background: transparent; }
+
 .uno-card:not(:disabled):not(.no-hover):hover {
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
 }
 
 .uno-card.selected {
-  box-shadow: 0 0 0 2px #fff, 0 4px 16px rgba(0,0,0,0.4);
-  transform: translateY(-8px) !important;
+  transform: translateY(-10px) !important;
+  filter: drop-shadow(0 0 0 #fff) drop-shadow(0 8px 14px rgba(249, 215, 28, 0.55));
 }
 
 .uno-card:disabled {
-  opacity: 0.42;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-/* Card text */
 .uno-corner {
   position: absolute;
   top: 6px;
@@ -79,18 +109,4 @@
 
 .uno-card.small .letter-big {
   font-size: 1.75rem !important;
-}
-
-/* Hand layout */
-.hand {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  justify-content: flex-start;
-  min-height: 104px;
-}
-
-.hand-compact .hand {
-  justify-content: center;
-  min-height: 80px;
 }

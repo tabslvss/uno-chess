@@ -11,6 +11,7 @@ interface HandProps {
   hidden: boolean;
   onPlay: (id: string) => void;
   compact?: boolean;
+  horizontal?: boolean;
   /** After Reverse: only this drawn card may be played */
   mustPlayCardId?: string | null;
 }
@@ -23,6 +24,7 @@ export function Hand({
   hidden,
   onPlay,
   compact = false,
+  horizontal = false,
   mustPlayCardId = null,
 }: HandProps) {
   const hand = state.hands[player];
@@ -35,21 +37,30 @@ export function Hand({
 
   return (
     <motion.div
-      className={`panel hand-panel${compact ? ' hand-compact' : ''}`}
-      initial={{ opacity: 0, y: 12 }}
+      className={[
+        'panel',
+        'hand-panel',
+        compact ? 'hand-compact' : '',
+        horizontal ? 'hand-panel-horizontal' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      initial={{ opacity: 0, y: horizontal ? 16 : 12 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      <p className={`player-label ${isActive ? 'active' : ''}`}>
-        {player === 'white' ? 'White' : 'Black'}
-        {hidden ? ' (hidden)' : ''}
-        {isActive
-          ? reverseBonus
-            ? ' — play the card you drew'
-            : ' — play a card'
-          : ''}
-        <span className="hand-count"> · {hand.length} cards</span>
-      </p>
-      <motion.div className="hand">
+      {!horizontal && (
+        <p className={`player-label ${isActive ? 'active' : ''}`}>
+          {player === 'white' ? 'White' : 'Black'}
+          {hidden ? ' (hidden)' : ''}
+          {isActive
+            ? reverseBonus
+              ? ' — play the card you drew'
+              : ' — play a card'
+            : ''}
+          <span className="hand-count"> · {hand.length} cards</span>
+        </p>
+      )}
+      <motion.div className={`hand${horizontal ? ' hand-horizontal' : ''}`}>
         <AnimatePresence mode="popLayout">
           {hidden
             ? hand.map((_, i) => (

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { Icon } from './Icon';
+import { StarBorder, ClickSpark } from './reactbits';
 
 interface AccountBarProps {
   onLogin: () => void;
@@ -15,15 +16,18 @@ export function AccountBar({ onLogin }: AccountBarProps) {
 
   if (!session) {
     return (
-      <motion.button
-        type="button"
-        className="btn btn-sm"
-        onClick={onLogin}
-        whileHover={{ y: -1 }}
-        whileTap={{ scale: 0.96 }}
-      >
-        Log in
-      </motion.button>
+      <ClickSpark sparkColor="#D31211" sparkCount={8}>
+        <StarBorder
+          as="button"
+          type="button"
+          className="nav-login-border"
+          color="#F9D71C"
+          speed="5s"
+          onClick={onLogin}
+        >
+          Log in
+        </StarBorder>
+      </ClickSpark>
     );
   }
 

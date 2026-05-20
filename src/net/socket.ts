@@ -232,15 +232,25 @@ export async function createRoom(): Promise<{
 
 export async function joinRoom(
   roomId: string,
-): Promise<{ roomId: string; color: Player; state: GameState }> {
+): Promise<MatchedPayload> {
   const code = roomId.trim().toUpperCase();
   if (!code) throw new Error('Enter a room code.');
-  const res = await emitWithAck<
-    { roomId: string; color: Player; state: GameState } | { error: string }
-  >('joinRoom', code);
+  const res = await emitWithAck<MatchedPayload | { error: string }>('joinRoom', code);
   if ('error' in res) throw new Error(res.error);
   if (!res?.roomId) throw new Error('Failed to join room.');
   return res;
+}
+
+export interface MatchPlayers {
+  white: { username: string };
+  black: { username: string } | null;
+}
+
+export interface MatchedPayload {
+  roomId: string;
+  color: Player;
+  state: GameState;
+  players: MatchPlayers;
 }
 
 export interface FindMatchResult {
@@ -248,6 +258,7 @@ export interface FindMatchResult {
   roomId?: string;
   color?: Player;
   state?: GameState;
+  players?: MatchPlayers;
   queued?: boolean;
   error?: string;
 }
@@ -280,9 +291,7 @@ export function onState(cb: (state: GameState) => void): () => void {
   };
 }
 
-export function onMatched(
-  cb: (data: { roomId: string; color: Player; state: GameState }) => void,
-): () => void {
+export function onMatched(cb: (data: MatchedPayload) => void): () => void {
   const s = getSocket();
   s.on('matched', cb);
   return () => {

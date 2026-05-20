@@ -34,6 +34,24 @@ function genCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+interface RoomPlayerInfo {
+  username: string;
+}
+
+interface MatchedPlayers {
+  white: RoomPlayerInfo;
+  black: RoomPlayerInfo | null;
+}
+
+function roomPlayersPayload(room: Room): MatchedPlayers {
+  const whiteUser = room.white ? socketUsers.get(room.white) : undefined;
+  const blackUser = room.black ? socketUsers.get(room.black) : undefined;
+  return {
+    white: { username: whiteUser?.username ?? 'Player' },
+    black: blackUser ? { username: blackUser.username } : null,
+  };
+}
+
 function assignToRoom(
   socket: Socket,
   room: Room,
@@ -201,9 +219,10 @@ io.on('connection', (socket) => {
         return;
       }
       const { color, state } = assignToRoom(socket, room, io);
+      const players = roomPlayersPayload(room);
       const hostSocket = room.white ? io.sockets.sockets.get(room.white) : undefined;
-      hostSocket?.emit('matched', { roomId: room.id, color: 'white', state });
-      cb({ roomId: room.id, color, state });
+      hostSocket?.emit('matched', { roomId: room.id, color: 'white', state, players });
+      cb({ roomId: room.id, color, state, players });
     },
   );
 
@@ -244,9 +263,10 @@ io.on('connection', (socket) => {
 
     const colorP: Player = hostIsWhite ? 'white' : 'black';
     const colorS: Player = hostIsWhite ? 'black' : 'white';
-    pSocket?.emit('matched', { roomId, color: colorP, state });
-    socket.emit('matched', { roomId, color: colorS, state });
-    cb({ ok: true, roomId, color: colorS, state });
+    const players = roomPlayersPayload(room);
+    pSocket?.emit('matched', { roomId, color: colorP, state, players });
+    socket.emit('matched', { roomId, color: colorS, state, players });
+    cb({ ok: true, roomId, color: colorS, state, players });
   });
 
   socket.on('action', async (payload: { roomId: string; action: GameAction }) => {

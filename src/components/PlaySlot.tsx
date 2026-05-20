@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { UnoCardView } from './UnoCardView';
 import type { UnoCard } from '../game/types';
+import './PlaySlot.css';
 
 interface PlaySlotProps {
   card: UnoCard | null;
@@ -8,28 +9,28 @@ interface PlaySlotProps {
 
 export function PlaySlot({ card }: PlaySlotProps) {
   return (
-    <div className="play-slot-widget">
-      <p className="draw-hint">Last Played</p>
+    <div className="play-slot-single">
       <AnimatePresence mode="wait">
         {card ? (
           <motion.div
             key={card.id}
-            initial={{ scale: 0.35, opacity: 0, y: -30, rotate: -15 }}
-            animate={{ scale: 1, opacity: 1, y: 0, rotate: 0 }}
-            exit={{ scale: 0.5, opacity: 0, y: 20 }}
-            transition={{ type: 'spring', stiffness: 340, damping: 24 }}
+            className="play-slot-card"
+            // Card flies from the bottom hand and grows to flank size
+            initial={{ scale: 0.45, opacity: 0, y: 280, rotate: -8 }}
+            animate={{ scale: 1, opacity: 1, y: 0, rotate: 3 }}
+            exit={{ scale: 0.5, opacity: 0, y: 30, rotate: 8 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
           >
-            <UnoCardView card={card} />
+            <UnoCardView card={card} large />
           </motion.div>
         ) : (
-          <motion.p
+          <motion.div
             key="empty"
-            className="play-empty"
+            className="play-slot-empty"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.4 }}
-          >
-            —
-          </motion.p>
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -1,6 +1,7 @@
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { SiteBackground } from './components/SiteBackground';
 import { preconnectSocket, startServerKeepAlive, warmGameServer } from './net/socket';
 import { useAuthStore } from './store/authStore';
 
@@ -18,7 +19,12 @@ function Root() {
     if (session) void preconnectSocket();
   }, [session]);
 
-  return <App />;
+  return (
+    <>
+      <SiteBackground />
+      <App />
+    </>
+  );
 }
 
 createRoot(document.getElementById('root')!).render(

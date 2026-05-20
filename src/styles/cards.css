@@ -1,0 +1,69 @@
+/* Shared playing-card dimensions (matches 2139×3308 PNGs) */
+:root {
+  --card-width: 88px;
+  --card-width-sm: 68px;
+  --card-width-lg: 168px;
+  --card-aspect: 2139 / 3308;
+  --card-radius: 0;
+}
+
+.card-surface--lg {
+  width: var(--card-width-lg);
+}
+
+/* Image-only card surface — no border, no fill, no shadow. */
+.card-surface {
+  width: var(--card-width);
+  aspect-ratio: var(--card-aspect);
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  display: block;
+  padding: 0;
+}
+
+.card-surface--sm {
+  width: var(--card-width-sm);
+}
+
+.card-surface img,
+.card-face-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  background: transparent;
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --card-width-lg: 140px;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --card-width-lg: 118px;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --card-width: 76px;
+    --card-width-sm: 58px;
+    --card-width-lg: 110px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --card-width: 68px;
+    --card-width-sm: 52px;
+    --card-width-lg: 96px;
+  }
+}

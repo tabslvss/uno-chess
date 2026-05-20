@@ -1,0 +1,26 @@
+.play-slot-single {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--card-width-lg);
+  aspect-ratio: var(--card-aspect);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.play-slot-card {
+  width: var(--card-width-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.55));
+  transform-origin: center bottom;
+}
+
+.play-slot-empty {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  border: 2px dashed rgba(255, 255, 255, 0.18);
+  background: transparent;
+}

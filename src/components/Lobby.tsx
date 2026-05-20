@@ -1,6 +1,11 @@
-import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { Icon } from './Icon';
+import {
+  SpotlightCard,
+  ShinyText,
+  FadeContent,
+  ClickSpark,
+} from './reactbits';
 
 type LobbyChoice = 'friend' | 'random' | 'bot';
 
@@ -48,73 +53,79 @@ export function Lobby({ onSelect }: LobbyProps) {
   const session = useAuthStore((s) => s.session);
 
   return (
-    <motion.div
-      className="hero"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4 }}
-    >
-      <motion.div
-        className="hero-eyebrow glass-pill"
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Icon name="pawn" size={14} />
-        <span>Hybrid Card &amp; Board Game</span>
-      </motion.div>
+    <div className="hero">
+      <FadeContent playOnMount blur duration={700} delay={0}>
+        <div className="hero-eyebrow glass-pill">
+          <Icon name="pawn" size={14} />
+          <span>Hybrid Card &amp; Board Game</span>
+        </div>
+      </FadeContent>
 
-      <motion.h1
-        className="hero-title"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, delay: 0.08 }}
-      >
-        UNO <span>Chess</span>
-      </motion.h1>
+      <FadeContent playOnMount blur duration={800} delay={80}>
+        <h1 className="hero-title" aria-label="UNO Chess">
+          <span className="wm u">U</span>
+          <span className="wm n">N</span>
+          <span className="wm o">O</span>
+          <span className="wm-space" aria-hidden> </span>
+          <span className="wm c">C</span>
+          <span className="wm h">H</span>
+          <span className="wm e">E</span>
+          <span className="wm s">S</span>
+          <span className="wm s2">S</span>
+        </h1>
+      </FadeContent>
 
-      <motion.p
-        className="hero-subtitle"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.16 }}
-      >
-        Play a card, unlock a rank or file, then make your move. The twist of UNO
-        meets the depth of chess.
-      </motion.p>
+      <FadeContent playOnMount duration={700} delay={160}>
+        <p className="hero-subtitle">
+          <ShinyText
+            text="Play a card, unlock a rank or file, then make your move."
+            speed={3}
+            color="#c8cbd1"
+            shineColor="#ffffff"
+            className="hero-shiny-line"
+          />
+          <br />
+          <ShinyText
+            text="The twist of UNO meets the depth of chess."
+            speed={3.5}
+            delay={0.4}
+            color="#8a8f99"
+            shineColor="#F9D71C"
+            className="hero-shiny-line"
+          />
+        </p>
+      </FadeContent>
 
-      <motion.div
-        className="hero-actions"
-        initial="hidden"
-        animate="show"
-        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
-      >
+      <div className="hero-actions">
         {cards.map((card, i) => (
-          <motion.button
-            key={card.key}
-            type="button"
-            className={`glass-card hero-card ${card.cls}`}
-            onClick={() => onSelect(card.key)}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.22 + i * 0.08, duration: 0.45, ease: 'easeOut' }}
-            whileHover={{ y: -4 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {card.badge && <span className="hero-card-badge">{card.badge}</span>}
-            {card.requiresAuth && !session && (
-              <span className="hero-card-lock" aria-label="Login required">
-                <Icon name="lock" size={14} />
-              </span>
-            )}
-            <span className="hero-card-icon" aria-hidden>
-              <Icon name={card.icon} size={22} />
-            </span>
-            <span className="hero-card-title">{card.title}</span>
-            <span className="hero-card-desc">{card.desc}</span>
-          </motion.button>
+          <FadeContent key={card.key} playOnMount duration={600} delay={240 + i * 90}>
+            <SpotlightCard
+              className="hero-card-spotlight"
+              spotlightColor="rgba(249, 215, 28, 0.18)"
+            >
+              <ClickSpark sparkColor="#D31211" sparkCount={10} duration={350}>
+                <button
+                  type="button"
+                  className={`hero-card glass-card ${card.cls}`}
+                  onClick={() => onSelect(card.key)}
+                >
+                  {card.badge && <span className="hero-card-badge">{card.badge}</span>}
+                  {card.requiresAuth && !session && (
+                    <span className="hero-card-lock" aria-label="Login required">
+                      <Icon name="lock" size={14} />
+                    </span>
+                  )}
+                  <span className="hero-card-icon" aria-hidden>
+                    <Icon name={card.icon} size={22} />
+                  </span>
+                  <span className="hero-card-title">{card.title}</span>
+                  <span className="hero-card-desc">{card.desc}</span>
+                </button>
+              </ClickSpark>
+            </SpotlightCard>
+          </FadeContent>
         ))}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

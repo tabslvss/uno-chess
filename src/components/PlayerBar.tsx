@@ -1,33 +1,36 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import type { Player } from '../game/types';
 
 interface PlayerBarProps {
   player: Player;
+  displayName: string;
   isYou: boolean;
   isActive: boolean;
   cardCount: number;
 }
 
-export function PlayerBar({ player, isYou, isActive, cardCount }: PlayerBarProps) {
-  const label = player === 'white' ? 'White' : 'Black';
-  const icon  = player === 'white' ? '♔' : '♚';
+export function PlayerBar({ player, displayName, isYou, isActive, cardCount }: PlayerBarProps) {
+  const colorLabel = player === 'white' ? 'White' : 'Black';
+  const icon = player === 'white' ? '\u2654' : '\u265A';
 
   return (
     <motion.div
-      className={`player-bar${isActive ? ' player-bar-active' : ''}`}
+      className={`player-bar${isActive ? ' player-bar-active' : ''}${isYou ? ' player-bar-you' : ''}`}
       layout
     >
-      <div className="player-bar-avatar" aria-hidden>
+      <div className={`player-bar-avatar player-bar-avatar-${player}`} aria-hidden>
         {icon}
       </div>
 
       <div className="player-bar-info">
         <div className="player-bar-name">
-          {label}
+          <span className="player-bar-display-name">{displayName}</span>
           {isYou && <span className="player-bar-tag">You</span>}
         </div>
         <div className="player-bar-meta">
-          {cardCount} card{cardCount !== 1 ? 's' : ''}
+          <span>{colorLabel}</span>
+          <span className="player-bar-dot" aria-hidden>&middot;</span>
+          <span>{cardCount} card{cardCount !== 1 ? 's' : ''}</span>
         </div>
       </div>
 
@@ -38,7 +41,7 @@ export function PlayerBar({ player, isYou, isActive, cardCount }: PlayerBarProps
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}
         >
-          ● To move
+          To move
         </motion.span>
       )}
     </motion.div>

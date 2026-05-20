@@ -15,6 +15,7 @@ import {
   onEloUpdate,
   clearAllListeners,
   disconnectSocket,
+  type MatchPlayers,
 } from '../net/socket';
 import { useAuthStore } from './authStore';
 import type { BotDifficulty, Player } from '../game/types';
@@ -50,6 +51,8 @@ interface GameStore {
   onlineLoading: boolean;
   waitingForOpponent: boolean;
   eloMessage: string | null;
+  /** Display names for online games (white / black seats). */
+  playerNames: Record<Player, string> | null;
   aiThinking: boolean;
   aiTimeoutId: ReturnType<typeof setTimeout> | null;
   // Chess clock
@@ -95,6 +98,13 @@ function botThinkDelayMs(): number {
   return BOT_THINK_MIN_MS + Math.random() * (BOT_THINK_MAX_MS - BOT_THINK_MIN_MS);
 }
 
+function namesFromPlayers(players: MatchPlayers): Record<Player, string> {
+  return {
+    white: players.white.username,
+    black: players.black?.username ?? 'Opponent',
+  };
+}
+
 function bindOnlineHandlers(
   set: (partial: Partial<GameStore> | ((s: GameStore) => Partial<GameStore>)) => void,
   get: () => GameStore,
@@ -117,6 +127,7 @@ function bindOnlineHandlers(
       state: data.state,
       roomId: data.roomId,
       myColor: data.color,
+      playerNames: namesFromPlayers(data.players),
       waitingForOpponent: false,
       screen: 'game',
     });
@@ -181,6 +192,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   onlineLoading: false,
   waitingForOpponent: false,
   eloMessage: null,
+  playerNames: null,
   aiThinking: false,
   aiTimeoutId: null,
   timers: { white: TURN_SECONDS, black: TURN_SECONDS },
@@ -335,6 +347,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       onlineLoading: false,
       waitingForOpponent: false,
       eloMessage: null,
+      playerNames: null,
     });
   },
 
@@ -361,6 +374,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state: UnoChess.newGame(),
       promotionPending: null,
       waitingForOpponent: false,
+      playerNames: null,
       timers: { white: TURN_SECONDS, black: TURN_SECONDS },
     });
     get().startClock();
@@ -399,13 +413,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       await connectSocket();
       bindOnlineHandlers(set, get);
-      const { roomId, color, state } = await joinRoom(trimmed);
+      const { roomId, color, state, players } = await joinRoom(trimmed);
       set({
         screen: 'game',
         gameMode: 'online',
         roomId,
         myColor: color,
         state,
+        playerNames: namesFromPlayers(players),
         onlineLoading: false,
         waitingForOpponent: false,
       });
@@ -421,13 +436,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       await connectSocket();
       bindOnlineHandlers(set, get);
       const res = await findMatch();
-      if (res.state && res.roomId && res.color) {
+      if (res.state && res.roomId && res.color && res.players) {
         set({
           screen: 'game',
           gameMode: 'online',
           roomId: res.roomId,
           myColor: res.color,
           state: res.state,
+          playerNames: namesFromPlayers(res.players),
           onlineLoading: false,
           waitingForOpponent: false,
         });

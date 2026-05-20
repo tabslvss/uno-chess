@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { cardLabel } from '../game/uno';
+import { cardImage } from '../assets/CardImages/manifest';
 import type { UnoCard } from '../game/types';
 import './UnoCardView.css';
 
@@ -8,12 +9,14 @@ interface Props {
   selected?: boolean;
   disabled?: boolean;
   small?: boolean;
+  large?: boolean;
   onClick?: () => void;
 }
 
-export function UnoCardView({ card, selected, disabled, small, onClick }: Props) {
+export function UnoCardView({ card, selected, disabled, small, large, onClick }: Props) {
   const label = cardLabel(card);
   const isLetter = card.type === 'letter';
+  const img = cardImage(card);
 
   return (
     <motion.button
@@ -23,7 +26,9 @@ export function UnoCardView({ card, selected, disabled, small, onClick }: Props)
         card.color,
         selected ? 'selected' : '',
         small ? 'small' : '',
+        large ? 'large' : '',
         isLetter ? 'letter-card' : '',
+        img ? 'has-image' : '',
         !onClick ? 'no-hover' : '',
       ]
         .filter(Boolean)
@@ -34,8 +39,14 @@ export function UnoCardView({ card, selected, disabled, small, onClick }: Props)
       whileTap={disabled ? {} : { scale: 0.96 }}
       layout
     >
-      <span className="uno-corner">{label}</span>
-      <span className={`uno-center${isLetter ? ' letter-big' : ''}`}>{label}</span>
+      {img ? (
+        <img className="uno-card-img" src={img} alt={label} draggable={false} />
+      ) : (
+        <>
+          <span className="uno-corner">{label}</span>
+          <span className={`uno-center${isLetter ? ' letter-big' : ''}`}>{label}</span>
+        </>
+      )}
     </motion.button>
   );
 }

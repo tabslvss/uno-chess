@@ -73,10 +73,19 @@ export function unlockedLines(card: UnoCard): { ranks: Set<number>; files: Set<n
   if (card.type === 'reverse' || card.type === 'skip') {
     return { ranks, files };
   }
-  const letter = card.letter ?? 'A';
+  const letter = card.letter;
+  if (!letter || !(letter in LETTER_INDEX)) return { ranks, files };
   ranks.add(letterToInternalRank(letter));
   files.add(LETTER_INDEX[letter]);
   return { ranks, files };
+}
+
+/** Human-readable lines for a letter card (e.g. "rank 6 and f-file"). */
+export function letterLinesDescription(card: UnoCard): string {
+  if (card.type !== 'letter' || !card.letter) return '';
+  const displayRank = LETTER_INDEX[card.letter] + 1;
+  const file = FILES[LETTER_INDEX[card.letter]];
+  return `rank ${displayRank} and ${file}-file`;
 }
 
 export function squareUnlocked(sq: Square, card: UnoCard): boolean {

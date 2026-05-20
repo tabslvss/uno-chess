@@ -4,10 +4,18 @@ import {
   applyChessMove,
   getLegalMovesForPiece,
   getMovablePieceSquares,
+  isChessMoveLegal,
   isInCheck,
+  isPromotionPiece,
   restoreFromRecord,
 } from './chess';
-import { createDeck, drawCards, pieceOnUnlockedLines, cardLabel } from './uno';
+import {
+  createDeck,
+  drawCards,
+  pieceOnUnlockedLines,
+  cardLabel,
+  letterLinesDescription,
+} from './uno';
 
 function msg(state: GameState, text: string): GameState {
   return { ...state, message: text };
@@ -48,10 +56,9 @@ function ensurePile(pile: UnoCard[]): UnoCard[] {
   return shuffle(createDeck());
 }
 
-/** True when a card is playable (can produce at least one legal move, or is skip/wild). */
-function cardIsPlayable(card: UnoCard, board: (import('./types').Piece | null)[][], player: Player): boolean {
-  if (card.type === 'skip' || card.type === 'wild' || card.type === 'reverse') return true;
-  return pieceOnUnlockedLines(board, player, card);
+/** True when a card can legally be played right now (same rules as the UI). */
+function cardIsPlayable(state: GameState, card: UnoCard): boolean {
+  return cardCanBePlayed(state, card);
 }
 
 /**
@@ -59,11 +66,11 @@ function cardIsPlayable(card: UnoCard, board: (import('./types').Piece | null)[]
  * Searches pile for a playable card; falls back to top of pile if none found.
  * Pile is automatically refilled if empty.
  */
-function drawPlayableCard(pile: UnoCard[], board: (import('./types').Piece | null)[][], player: Player): { pile: UnoCard[]; card: UnoCard } {
+function drawPlayableCard(state: GameState, pile: UnoCard[]): { pile: UnoCard[]; card: UnoCard } {
   const mutable = [...ensurePile(pile)];
   // Try to find a playable card anywhere in the pile
   for (let i = mutable.length - 1; i >= 0; i--) {
-    if (cardIsPlayable(mutable[i]!, board, player)) {
+    if (cardIsPlayable(state, mutable[i]!)) {
       const card = mutable[i]!;
       mutable.splice(i, 1);
       return { pile: mutable, card };
@@ -79,7 +86,7 @@ function drawToPlayer(state: GameState, player: Player, n: number): { state: Gam
   const drawn: UnoCard[] = [];
   for (let i = 0; i < n; i++) {
     // Infinite pile: refill if empty
-    const result = drawPlayableCard(pile, state.board, player);
+    const result = drawPlayableCard(state, pile);
     pile = result.pile;
     drawn.push(result.card);
   }
@@ -101,7 +108,7 @@ function drawToPlayer(state: GameState, player: Player, n: number): { state: Gam
 export function allCardsUnplayable(state: GameState, player: Player): boolean {
   const hand = state.hands[player];
   if (hand.length === 0) return false;
-  return hand.every((c) => !cardIsPlayable(c, state.board, player));
+  return hand.every((c) => !cardIsPlayable(state, c));
 }
 
 /** Discard a card from hand and replace it with a playable card from the pile. */
@@ -114,7 +121,7 @@ export function discardForRedraw(state: GameState, cardId: string): GameState {
   const newHand = hand.filter((c) => c.id !== cardId);
   // Put the discarded card at bottom of pile, draw a playable replacement
   const pileWithDiscard = [card, ...state.drawPile];
-  const { pile: newPile, card: drawn } = drawPlayableCard(pileWithDiscard, state.board, player);
+  const { pile: newPile, card: drawn } = drawPlayableCard(state, pileWithDiscard);
 
   return msg(
     {
@@ -179,10 +186,8 @@ export function cardCanBePlayed(state: GameState, card: UnoCard): boolean {
   }
 
   if (card.type === 'wild' || card.type === 'letter') {
-    if (!pieceOnUnlockedLines(state.board, player, card) && card.type === 'letter') return false;
-    if (inCheck) return getMovablePieceSquares(state, card).length > 0;
-    if (card.type === 'letter') return getMovablePieceSquares(state, card).length > 0;
-    return true;
+    if (!pieceOnUnlockedLines(state.board, player, card)) return false;
+    return getMovablePieceSquares(state, card).length > 0;
   }
 
   return false;
@@ -197,7 +202,12 @@ export function cardRejectReason(state: GameState, card: UnoCard): string {
   }
   if (card.type === 'reverse') return "Reverse — there's no opponent move to undo.";
   if (card.type === 'skip') return "Skip — you can't play Skip while in check.";
-  if (card.type === 'letter') return 'That letter has no legal moves right now.';
+  if (card.type === 'letter') {
+    if (!pieceOnUnlockedLines(state.board, player, card)) {
+      return `No pieces on ${letterLinesDescription(card)}.`;
+    }
+    return `No legal moves on ${letterLinesDescription(card)}.`;
+  }
   return "You can't play that card right now.";
 }
 
@@ -410,7 +420,10 @@ export function playCard(state: GameState, cardId: string, wildColor?: Color): G
       return msg(state, "Reverse — there's no opponent move to undo.");
     }
     if (card.type === 'letter') {
-      return msg(state, 'That letter has no legal moves right now.');
+      if (!pieceOnUnlockedLines(state.board, player, card)) {
+        return msg(state, `No pieces on ${letterLinesDescription(card)}.`);
+      }
+      return msg(state, `No legal moves on ${letterLinesDescription(card)}.`);
     }
     if (card.type === 'skip') {
       return msg(state, "Skip — you can't play Skip while in check.");
@@ -425,6 +438,16 @@ export function playCard(state: GameState, cardId: string, wildColor?: Color): G
       pendingCardId: cardId,
       message: 'Wild — choose a color.',
     };
+  }
+
+  if (card.type === 'letter') {
+    if (!pieceOnUnlockedLines(state.board, player, card)) {
+      return msg(state, `Can't play ${card.letter} — no pieces on ${letterLinesDescription(card)}.`);
+    }
+    const probe = { ...state, activeCard: card };
+    if (getMovablePieceSquares(probe, card).length === 0) {
+      return msg(state, `Can't play ${card.letter} — no legal moves on ${letterLinesDescription(card)}.`);
+    }
   }
 
   const newHand = hand.filter((c) => c.id !== cardId);
@@ -453,11 +476,13 @@ export function playCard(state: GameState, cardId: string, wildColor?: Color): G
   }
 
   const label = card.type === 'letter' ? card.letter : cardLabel(card);
-  s = msg(s, `Played ${label} — move on that rank/file.`);
-
-  if (card.type === 'letter' && !pieceOnUnlockedLines(s.board, player, card)) {
-    return finishTurn(msg(s, 'No pieces on those lines — turn ends.'), false);
-  }
+  const linesHint = card.type === 'letter' ? letterLinesDescription(card) : '';
+  s = msg(
+    s,
+    card.type === 'letter'
+      ? `Played ${label} — pieces on ${linesHint} may move.`
+      : `Played ${label}.`,
+  );
 
   if (getMovablePieceSquares(s, s.activeCard!).length === 0) {
     const inCheck = isInCheck(s.board, player);
@@ -486,6 +511,7 @@ export function pickWildColor(state: GameState, color: Color): GameState {
 
 export function selectSquare(state: GameState, sq: Square): GameState {
   if (state.phase !== 'chess' || !state.activeCard) return state;
+  if (state.pendingPromotion) return state;
   const card = state.activeCard;
   const sel = state.selectedSquare;
 
@@ -543,11 +569,20 @@ export function executeMove(
     );
   }
 
+  const promo = needsPromotion ? promotion : 'queen';
+  if (needsPromotion && !isPromotionPiece(promo)) {
+    return msg(state, 'Invalid promotion piece.');
+  }
+
+  if (!isChessMoveLegal(state, actualFrom, actualTo, state.activeCard, needsPromotion ? promo : undefined)) {
+    return msg(state, 'Illegal move.');
+  }
+
   const { board, record, kingCaptured, castlingRights, enPassantTarget } = applyChessMove(
     state,
     actualFrom,
     actualTo,
-    needsPromotion ? promotion : 'queen',
+    needsPromotion ? promo : 'queen',
   );
   let s: GameState = clearPromotion({
     ...state,

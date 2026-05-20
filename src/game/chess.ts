@@ -11,6 +11,13 @@ import type {
 import { cloneBoard, squareKey } from './constants';
 import { moveRespectsCardUnlock, squareUnlockedForPiece, unlockedLines } from './uno';
 
+/** Pieces a pawn may promote to. */
+export const PROMOTION_CHOICES: PieceType[] = ['queen', 'rook', 'bishop', 'knight'];
+
+export function isPromotionPiece(type: PieceType): boolean {
+  return PROMOTION_CHOICES.includes(type);
+}
+
 export function getPiece(state: GameState, sq: Square): Piece | null {
   return state.board[sq.rank]?.[sq.file] ?? null;
 }
@@ -219,6 +226,7 @@ function applyMoveToBoard(
   from: Square,
   to: Square,
   ep: Square | null,
+  promotion?: PieceType,
 ): (Piece | null)[][] {
   const b = cloneBoard(board);
   const piece = b[from.rank][from.file];
@@ -238,10 +246,10 @@ function applyMoveToBoard(
   // Castling — also move the rook
   if (piece.type === 'king' && Math.abs(to.file - from.file) === 2) {
     const rank = from.rank;
-    if (to.file === 6) {          // kingside
+    if (to.file === 6) {
       b[rank][5] = b[rank][7];
       b[rank][7] = null;
-    } else {                      // queenside
+    } else {
       b[rank][3] = b[rank][0];
       b[rank][0] = null;
     }
@@ -249,7 +257,30 @@ function applyMoveToBoard(
 
   b[to.rank][to.file] = piece;
   b[from.rank][from.file] = null;
+
+  if (piece.type === 'pawn' && (to.rank === 0 || to.rank === 7)) {
+    const promo = promotion && isPromotionPiece(promotion) ? promotion : 'queen';
+    b[to.rank][to.file] = { type: promo, player: piece.player };
+  }
+
   return b;
+}
+
+/** Lose castling rights when a corner rook is captured on its home square. */
+function stripCastlingIfHomeRookCaptured(
+  rights: CastlingRights,
+  sq: Square,
+  captured: Piece | null,
+): void {
+  if (!captured || captured.type !== 'rook') return;
+  if (captured.player === 'white' && sq.rank === 7) {
+    if (sq.file === 0) rights.whiteQueenside = false;
+    if (sq.file === 7) rights.whiteKingside = false;
+  }
+  if (captured.player === 'black' && sq.rank === 0) {
+    if (sq.file === 0) rights.blackQueenside = false;
+    if (sq.file === 7) rights.blackKingside = false;
+  }
 }
 
 /**
@@ -261,9 +292,35 @@ export function moveResultsInSelfCheck(
   from: Square,
   to: Square,
   player: Player,
+  promotion?: PieceType,
 ): boolean {
-  const after = applyMoveToBoard(state.board, from, to, state.enPassantTarget);
+  const piece = state.board[from.rank]?.[from.file];
+  if (piece?.type === 'pawn' && (to.rank === 0 || to.rank === 7)) {
+    if (promotion) {
+      if (!isPromotionPiece(promotion)) return true;
+      const after = applyMoveToBoard(state.board, from, to, state.enPassantTarget, promotion);
+      return isInCheck(after, player);
+    }
+    const anyEscapes = PROMOTION_CHOICES.some((p) => {
+      const after = applyMoveToBoard(state.board, from, to, state.enPassantTarget, p);
+      return !isInCheck(after, player);
+    });
+    return !anyEscapes;
+  }
+  const after = applyMoveToBoard(state.board, from, to, state.enPassantTarget, promotion);
   return isInCheck(after, player);
+}
+
+/** Legal promotion pieces for a pawn reaching the back rank (pin/check aware). */
+export function legalPromotionChoices(
+  state: { board: (Piece | null)[][]; enPassantTarget: Square | null },
+  from: Square,
+  to: Square,
+  player: Player,
+): PieceType[] {
+  return PROMOTION_CHOICES.filter(
+    (p) => !moveResultsInSelfCheck(state, from, to, player, p),
+  );
 }
 
 /** UNO Chess: king ignores check; no check filtering on any move. */
@@ -339,7 +396,15 @@ export function getLegalMovesForPiece(
     card,
   );
   return raw.filter((to) => {
-    // Castling: both king and dest must be unlocked
+    if (
+      piece.type === 'pawn' &&
+      (to.rank === 0 || to.rank === 7) &&
+      legalPromotionChoices(state, from, to, player).length === 0
+    ) {
+      return false;
+    }
+
+    // Castling: king must start on unlocked rank/file
     if (piece.type === 'king' && Math.abs(to.file - from.file) === 2) {
       const { ranks, files } = unlockedLines(card);
       if (!(ranks.has(from.rank) || files.has(from.file))) return false;
@@ -382,6 +447,25 @@ export function getMovablePieceSquares(state: GameState, card: UnoCard): Square[
   return out;
 }
 
+/** True if this move is legal under the active card (used before applying). */
+export function isChessMoveLegal(
+  state: GameState,
+  from: Square,
+  to: Square,
+  card: UnoCard,
+  promotion?: PieceType,
+): boolean {
+  const dests = getLegalMovesForPiece(state, from, card);
+  if (!dests.some((d) => squaresEqual(d, to))) return false;
+  const piece = getPiece(state, from);
+  if (piece?.type === 'pawn' && (to.rank === 0 || to.rank === 7)) {
+    const promo = promotion ?? 'queen';
+    if (!isPromotionPiece(promo)) return false;
+    return legalPromotionChoices(state, from, to, state.currentPlayer).includes(promo);
+  }
+  return true;
+}
+
 export function applyChessMove(
   state: GameState,
   from: Square,
@@ -396,7 +480,7 @@ export function applyChessMove(
 } {
   const board = cloneBoard(state.board);
   const piece = board[from.rank][from.file]!;
-  const captured = board[to.rank][to.file] ? { ...board[to.rank][to.file]! } : null;
+  let captured = board[to.rank][to.file] ? { ...board[to.rank][to.file]! } : null;
   const boardBefore = cloneBoard(state.board);
   let enPassant = false;
   let castling: 'kingside' | 'queenside' | undefined;
@@ -420,6 +504,8 @@ export function applyChessMove(
   if (piece.type === 'pawn' && state.enPassantTarget) {
     if (to.file === state.enPassantTarget.file && to.rank === state.enPassantTarget.rank) {
       const capRank = piece.player === 'white' ? to.rank + 1 : to.rank - 1;
+      const epVictim = board[capRank][to.file];
+      if (epVictim) captured = { ...epVictim };
       board[capRank][to.file] = null;
       enPassant = true;
     }
@@ -433,7 +519,15 @@ export function applyChessMove(
   }
 
   if (piece.type === 'pawn' && (to.rank === 0 || to.rank === 7)) {
-    board[to.rank][to.file] = { type: promotion, player: piece.player };
+    const promo = isPromotionPiece(promotion) ? promotion : 'queen';
+    board[to.rank][to.file] = { type: promo, player: piece.player };
+  }
+
+  if (captured?.type === 'rook') {
+    const capSq = enPassant
+      ? { file: to.file, rank: piece.player === 'white' ? to.rank + 1 : to.rank - 1 }
+      : to;
+    stripCastlingIfHomeRookCaptured(rights, capSq, captured);
   }
 
   if (piece.type === 'king') {

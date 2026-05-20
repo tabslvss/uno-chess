@@ -609,7 +609,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state, myColor, aiThinking } = get();
     if (!myColor || aiThinking || state.currentPlayer !== myColor) return;
     if (state.phase !== 'playCard') return;
+    const prev = state;
     get().dispatch({ type: 'discardForRedraw', cardId });
+    const next = get().state;
+    if (next !== prev) {
+      get().pushToast('Card swapped — play a card from your hand.', 'info');
+    }
   },
 
   dispatch: (action) => {

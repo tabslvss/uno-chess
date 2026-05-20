@@ -9,12 +9,13 @@ interface Props {
   selected?: boolean;
   disabled?: boolean;
   dimmed?: boolean;
+  swapMode?: boolean;
   small?: boolean;
   large?: boolean;
   onClick?: () => void;
 }
 
-export function UnoCardView({ card, selected, disabled, dimmed, small, large, onClick }: Props) {
+export function UnoCardView({ card, selected, disabled, dimmed, swapMode, small, large, onClick }: Props) {
   const label = cardLabel(card);
   const isLetter = card.type === 'letter';
   const img = cardImage(card);
@@ -31,6 +32,7 @@ export function UnoCardView({ card, selected, disabled, dimmed, small, large, on
         isLetter ? 'letter-card' : '',
         img ? 'has-image' : '',
         dimmed ? 'dimmed' : '',
+        swapMode ? 'swap-mode' : '',
         !onClick ? 'no-hover' : '',
       ]
         .filter(Boolean)

@@ -12,6 +12,8 @@ interface HandProps {
   canControl: boolean;
   hidden: boolean;
   onPlay: (id: string) => void;
+  /** Swap mode when every card is stuck — not the same as playing a card */
+  onDiscard?: (id: string) => void;
   compact?: boolean;
   horizontal?: boolean;
 }
@@ -23,11 +25,13 @@ export function Hand({
   canControl,
   hidden,
   onPlay,
+  onDiscard,
   compact = false,
   horizontal = false,
 }: HandProps) {
   const pushToast = useGameStore((s) => s.pushToast);
   const hand = state.hands[player];
+  const swapMode = Boolean(onDiscard);
   const canPlay = isActive && canControl && state.phase === 'playCard';
 
   return (
@@ -79,10 +83,15 @@ export function Hand({
                     <UnoCardView
                       card={card}
                       disabled={!canPlay}
-                      dimmed={canPlay && !playable}
+                      dimmed={!swapMode && canPlay && !playable}
+                      swapMode={swapMode && canPlay}
                       selected={justPlayed}
                       onClick={() => {
                         if (!canPlay) return;
+                        if (swapMode) {
+                          onDiscard?.(card.id);
+                          return;
+                        }
                         if (!playable) {
                           pushToast(cardRejectReason(state, card), 'warn');
                           return;

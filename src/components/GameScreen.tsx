@@ -9,6 +9,7 @@ import { GameTimer } from './GameTimer';
 import { Icon } from './Icon';
 import { ClickSpark } from './reactbits';
 import { UnoChess } from '../game/api';
+import { legalPromotionChoices } from '../game/chess';
 import { COLORS } from '../game/constants';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
@@ -160,7 +161,7 @@ export function GameScreen({
           {showRedrawBanner ? (
             <motion.div className="redraw-banner redraw-banner-inline">
               <strong>All cards are stuck!</strong>
-              Click a card to swap it for a playable one.
+              Tap a card to discard and draw a replacement — you are not playing that card.
             </motion.div>
           ) : null}
 
@@ -170,7 +171,8 @@ export function GameScreen({
             hidden={myColor !== bottomPlayer}
             isActive={rawState.currentPlayer === bottomPlayer}
             canControl={canControl && myColor === bottomPlayer}
-            onPlay={showRedrawBanner ? discardAndRedraw : playCard}
+            onPlay={playCard}
+            onDiscard={showRedrawBanner ? discardAndRedraw : undefined}
             horizontal
           />
 
@@ -217,12 +219,21 @@ export function GameScreen({
               <motion.div className="promo-grid">
                 {(
                   [
-                    { piece: 'queen', glyph: '♕', label: 'Queen' },
-                    { piece: 'rook', glyph: '♖', label: 'Rook' },
-                    { piece: 'bishop', glyph: '♗', label: 'Bishop' },
-                    { piece: 'knight', glyph: '♘', label: 'Knight' },
+                    { piece: 'queen' as const, glyph: '♕', label: 'Queen' },
+                    { piece: 'rook' as const, glyph: '♖', label: 'Rook' },
+                    { piece: 'bishop' as const, glyph: '♗', label: 'Bishop' },
+                    { piece: 'knight' as const, glyph: '♘', label: 'Knight' },
                   ] as const
-                ).map(({ piece, glyph, label }) => (
+                )
+                  .filter(({ piece }) =>
+                    legalPromotionChoices(
+                      rawState,
+                      rawState.pendingPromotion!.from,
+                      rawState.pendingPromotion!.to,
+                      rawState.currentPlayer,
+                    ).includes(piece),
+                  )
+                  .map(({ piece, glyph, label }) => (
                   <button
                     key={piece}
                     type="button"

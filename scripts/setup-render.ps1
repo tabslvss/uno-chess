@@ -14,7 +14,7 @@ $RenderUrl = "https://github.com/render-oss/cli/releases/download/$RenderVersion
 function Get-DotEnvValue([string]$Key) {
     $envFile = Join-Path $RepoRoot ".env"
     if (-not (Test-Path $envFile)) {
-        throw "Missing .env in $RepoRoot — run Supabase setup first."
+        throw "Missing .env in $RepoRoot - run Supabase setup first."
     }
     foreach ($line in Get-Content $envFile) {
         if ($line -match "^\s*#") { continue }
@@ -52,6 +52,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Invoke-Render @("whoami", "-o", "text")
+
+$workspaces = & $RenderExe workspaces -o json | ConvertFrom-Json
+if ($workspaces -and $workspaces.Count -ge 1) {
+    $wsId = $workspaces[0].id
+    Invoke-Render @("workspace", "set", $wsId, "-o", "text")
+}
 
 $supabaseUrl = Get-DotEnvValue "SUPABASE_URL"
 $serviceKey = Get-DotEnvValue "SUPABASE_SERVICE_ROLE_KEY"

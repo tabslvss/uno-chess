@@ -52,8 +52,14 @@ function log(...args: unknown[]): void {
   console.log('[unochess-party]', ...args);
 }
 
+const DEFAULT_ALLOWED_ORIGINS =
+  'https://uno-chess.vercel.app,http://localhost:5173';
+
 function allowedOriginsFromEnv(env: Record<string, unknown>): string[] {
-  const raw = String(env.ALLOWED_ORIGINS ?? '');
+  const g = globalThis as { process?: { env: Record<string, string> } };
+  const raw = String(
+    env.ALLOWED_ORIGINS ?? g.process?.env?.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS,
+  );
   return raw
     .split(',')
     .map((o) => o.trim())

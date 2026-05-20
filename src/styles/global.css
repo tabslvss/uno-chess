@@ -1211,6 +1211,21 @@ h1, h2, h3 {
   margin: 0.5rem 0 1.25rem;
 }
 
+.room-link-btn {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.room-link-preview {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  max-width: min(100%, 320px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+}
+
 .room-code-label {
   font-size: 0.65rem;
   font-weight: 700;

@@ -8,6 +8,7 @@ interface OnlineJoinProps {
   error?: string;
   loading?: boolean;
   onClearError?: () => void;
+  initialCode?: string;
 }
 
 export function OnlineJoin({
@@ -16,8 +17,9 @@ export function OnlineJoin({
   error,
   loading,
   onClearError,
+  initialCode = '',
 }: OnlineJoinProps) {
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(initialCode);
   const [slow, setSlow] = useState(false);
   const cleanCode = code.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 6);
   const canSubmit = cleanCode.length >= 4 && !loading;

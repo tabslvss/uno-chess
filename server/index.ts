@@ -24,6 +24,7 @@ interface QueueEntry {
   socketId: string;
   userId: string;
   elo: number;
+  queuedAt: number;
 }
 
 const rooms = new Map<string, Room>();
@@ -97,20 +98,110 @@ function removeFromQueue(socketId: string): void {
   if (idx >= 0) queue.splice(idx, 1);
 }
 
-function findRankedPartner(entry: QueueEntry): QueueEntry | undefined {
-  const MAX_GAP = 400;
+function findRankedPartner(entry: QueueEntry, maxGap: number): QueueEntry | undefined {
   let best: QueueEntry | undefined;
   let bestGap = Infinity;
   for (const other of queue) {
     if (other.socketId === entry.socketId || other.userId === entry.userId) continue;
     const gap = Math.abs(other.elo - entry.elo);
-    if (gap <= MAX_GAP && gap < bestGap) {
+    if (gap <= maxGap && gap < bestGap) {
       best = other;
       bestGap = gap;
     }
   }
   if (best) return best;
-  return queue.find((o) => o.socketId !== entry.socketId && o.userId !== entry.userId);
+  if (maxGap === Infinity) {
+    return queue.find((o) => o.socketId !== entry.socketId && o.userId !== entry.userId);
+  }
+  return undefined;
+}
+
+function playerSlot(room: Room, userId: string): Player | null {
+  if (room.whiteUserId === userId) return 'white';
+  if (room.blackUserId === userId) return 'black';
+  return null;
+}
+
+function attachSocketToRoom(
+  socket: Socket,
+  room: Room,
+  color: Player,
+  io: Server,
+): { color: Player; state: GameState } {
+  if (color === 'white') room.white = socket.id;
+  else room.black = socket.id;
+  socket.join(room.id);
+  io.to(room.id).emit('opponentReconnected');
+  io.to(room.id).emit('state', room.state);
+  return { color, state: room.state };
+}
+
+function createRankedRoom(
+  a: QueueEntry,
+  b: QueueEntry,
+  io: Server,
+): {
+  roomId: string;
+  state: GameState;
+  players: MatchedPlayers;
+  colorBySocket: Record<string, Player>;
+} | null {
+  const socketA = io.sockets.sockets.get(a.socketId);
+  const socketB = io.sockets.sockets.get(b.socketId);
+  if (!socketA || !socketB) return null;
+
+  removeFromQueue(a.socketId);
+  removeFromQueue(b.socketId);
+
+  const roomId = genCode();
+  const state = createGame();
+  const hostIsWhite = Math.random() < 0.5;
+  const room: Room = {
+    id: roomId,
+    state,
+    white: hostIsWhite ? a.socketId : b.socketId,
+    black: hostIsWhite ? b.socketId : a.socketId,
+    whiteUserId: hostIsWhite ? a.userId : b.userId,
+    blackUserId: hostIsWhite ? b.userId : a.userId,
+    ranked: true,
+    eloApplied: false,
+  };
+  rooms.set(roomId, room);
+
+  socketA.join(roomId);
+  socketB.join(roomId);
+
+  const colorA: Player = hostIsWhite ? 'white' : 'black';
+  const colorB: Player = hostIsWhite ? 'black' : 'white';
+  const players = roomPlayersPayload(room);
+
+  socketA.emit('matched', { roomId, color: colorA, state, players });
+  socketB.emit('matched', { roomId, color: colorB, state, players });
+
+  return {
+    roomId,
+    state,
+    players,
+    colorBySocket: { [a.socketId]: colorA, [b.socketId]: colorB },
+  };
+}
+
+function processMatchQueue(io: Server): void {
+  if (queue.length < 2) return;
+
+  const now = Date.now();
+  for (let i = 0; i < queue.length; i++) {
+    const entry = queue[i];
+    if (!entry) continue;
+    const waitMs = now - entry.queuedAt;
+    const maxGap = waitMs > 12_000 ? Infinity : waitMs > 6_000 ? 800 : 400;
+    const partner = findRankedPartner(entry, maxGap);
+    if (!partner) continue;
+
+    const result = createRankedRoom(entry, partner, io);
+    if (result) return processMatchQueue(io);
+    return;
+  }
 }
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '*')
@@ -203,14 +294,27 @@ io.on('connection', (socket) => {
     'joinRoom',
     (
       roomId: string,
-      cb: (res: { roomId: string; color: Player; state: GameState } | { error: string }) => void,
+      cb: (
+        res:
+          | { roomId: string; color: Player; state: GameState; players: MatchedPlayers }
+          | { error: string },
+      ) => void,
     ) => {
       const room = rooms.get(String(roomId).toUpperCase());
       if (!room) {
         cb({ error: 'Room not found' });
         return;
       }
-      if (room.black) {
+
+      const existing = playerSlot(room, user.id);
+      if (existing) {
+        const { color, state } = attachSocketToRoom(socket, room, existing, io);
+        const players = roomPlayersPayload(room);
+        cb({ roomId: room.id, color, state, players });
+        return;
+      }
+
+      if (room.black && room.blackUserId) {
         cb({ error: 'Room is full' });
         return;
       }
@@ -226,47 +330,47 @@ io.on('connection', (socket) => {
     },
   );
 
+  socket.on('leaveQueue', () => {
+    removeFromQueue(socket.id);
+  });
+
   socket.on('findMatch', (cb: (res: unknown) => void) => {
     removeFromQueue(socket.id);
 
-    const entry: QueueEntry = { socketId: socket.id, userId: user.id, elo: user.elo };
+    const entry: QueueEntry = {
+      socketId: socket.id,
+      userId: user.id,
+      elo: user.elo,
+      queuedAt: Date.now(),
+    };
     queue.push(entry);
 
-    const partner = findRankedPartner(entry);
-    if (!partner) {
+    const partner = findRankedPartner(entry, 400);
+    if (partner) {
+      const created = createRankedRoom(entry, partner, io);
+      if (created) {
+        const color = created.colorBySocket[entry.socketId];
+        if (color) {
+          cb({
+            ok: true,
+            roomId: created.roomId,
+            color,
+            state: created.state,
+            players: created.players,
+          });
+          return;
+        }
+      }
+    }
+
+    processMatchQueue(io);
+    const stillQueued = queue.some((e) => e.socketId === socket.id);
+    if (stillQueued) {
       cb({ ok: true, queued: true });
       return;
     }
 
-    removeFromQueue(socket.id);
-    removeFromQueue(partner.socketId);
-
-    const roomId = genCode();
-    const state = createGame();
-    const hostIsWhite = Math.random() < 0.5;
-    const partnerUser = socketUsers.get(partner.socketId);
-    const room: Room = {
-      id: roomId,
-      state,
-      white: hostIsWhite ? partner.socketId : socket.id,
-      black: hostIsWhite ? socket.id : partner.socketId,
-      whiteUserId: hostIsWhite ? partner.userId : user.id,
-      blackUserId: hostIsWhite ? user.id : partner.userId,
-      ranked: true,
-      eloApplied: false,
-    };
-    rooms.set(roomId, room);
-
-    const pSocket = io.sockets.sockets.get(partner.socketId);
-    pSocket?.join(roomId);
-    socket.join(roomId);
-
-    const colorP: Player = hostIsWhite ? 'white' : 'black';
-    const colorS: Player = hostIsWhite ? 'black' : 'white';
-    const players = roomPlayersPayload(room);
-    pSocket?.emit('matched', { roomId, color: colorP, state, players });
-    socket.emit('matched', { roomId, color: colorS, state, players });
-    cb({ ok: true, roomId, color: colorS, state, players });
+    cb({ ok: true, queued: true });
   });
 
   socket.on('action', async (payload: { roomId: string; action: GameAction }) => {
@@ -310,11 +414,16 @@ io.on('connection', (socket) => {
     for (const [id, room] of rooms) {
       if (room.white === socket.id) room.white = null;
       if (room.black === socket.id) room.black = null;
-      if (!room.white && !room.black) rooms.delete(id);
-      else io.to(id).emit('opponentLeft');
+      if (!room.white && !room.black) {
+        if (room.state.phase === 'gameOver') rooms.delete(id);
+      } else {
+        io.to(id).emit('opponentLeft');
+      }
     }
   });
 });
+
+setInterval(() => processMatchQueue(io), 2_000);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`UNO Chess server on port ${PORT}`);

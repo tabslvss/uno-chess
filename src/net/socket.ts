@@ -3,14 +3,16 @@ import type { GameAction, GameState, Player, GameResult } from '../game/types';
 import { supabase } from '../lib/supabase';
 
 const URL = import.meta.env.VITE_SERVER_URL ?? '';
-const ACK_TIMEOUT_MS = 12_000;
-const CONNECT_TIMEOUT_MS = 25_000;
-const CONNECT_RETRIES = 8;
-const RETRY_DELAY_MS = 600;
+const ACK_TIMEOUT_MS = 15_000;
+const CONNECT_TIMEOUT_MS = 20_000;
+const CONNECT_RETRIES = 5;
+const RETRY_DELAY_MS = 500;
 
 let socket: Socket | null = null;
 let warmPromise: Promise<boolean> | null = null;
 let preconnectPromise: Promise<void> | null = null;
+let preferWebSocketOnly = false;
+let matchmakingWarmInterval: ReturnType<typeof setInterval> | null = null;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -77,11 +79,11 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(URL, {
       autoConnect: false,
-      transports: ['websocket', 'polling'],
+      transports: preferWebSocketOnly ? ['websocket'] : ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 12,
-      reconnectionDelay: 400,
-      reconnectionDelayMax: 2_000,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 300,
+      reconnectionDelayMax: 1_500,
       timeout: CONNECT_TIMEOUT_MS,
     });
   }
@@ -100,6 +102,7 @@ function connectOnce(token: string): Promise<void> {
     const onConnect = () => {
       if (settled) return;
       settled = true;
+      preferWebSocketOnly = true;
       cleanup();
       resolve();
     };
@@ -267,6 +270,24 @@ export async function findMatch(): Promise<FindMatchResult> {
   return emitWithAck<FindMatchResult>('findMatch');
 }
 
+export function leaveQueue(): void {
+  const s = socket;
+  if (s?.connected) s.emit('leaveQueue');
+}
+
+export function startMatchmakingWarmup(): void {
+  stopMatchmakingWarmup();
+  void warmGameServer(true);
+  matchmakingWarmInterval = setInterval(() => void warmGameServer(true), 4_000);
+}
+
+export function stopMatchmakingWarmup(): void {
+  if (matchmakingWarmInterval) {
+    clearInterval(matchmakingWarmInterval);
+    matchmakingWarmInterval = null;
+  }
+}
+
 export function sendAction(roomId: string, action: GameAction): void {
   getSocket().emit('action', { roomId: roomId.toUpperCase(), action });
 }
@@ -307,6 +328,14 @@ export function onOpponentLeft(cb: () => void): () => void {
   };
 }
 
+export function onOpponentReconnected(cb: () => void): () => void {
+  const s = getSocket();
+  s.on('opponentReconnected', cb);
+  return () => {
+    s.off('opponentReconnected', cb);
+  };
+}
+
 export function onEloUpdate(cb: (data: EloUpdatePayload) => void): () => void {
   const s = getSocket();
   s.on('eloUpdate', cb);
@@ -321,10 +350,12 @@ export function clearAllListeners(): void {
   s.off('state');
   s.off('matched');
   s.off('opponentLeft');
+  s.off('opponentReconnected');
   s.off('eloUpdate');
 }
 
 export function disconnectSocket(): void {
+  stopMatchmakingWarmup();
   if (!socket) return;
   clearAllListeners();
   socket.disconnect();

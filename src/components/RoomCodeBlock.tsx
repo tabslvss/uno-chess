@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { gameShareUrl } from '../lib/routes';
 import { Icon } from './Icon';
 
 interface RoomCodeBlockProps {
   code: string;
+  /** Full invite link; defaults to /game/{code} on this site */
+  shareUrl?: string;
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -30,8 +33,10 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function RoomCodeBlock({ code }: RoomCodeBlockProps) {
+export function RoomCodeBlock({ code, shareUrl }: RoomCodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const inviteUrl = shareUrl ?? gameShareUrl(code);
 
   const handleCopy = async () => {
     const ok = await copyText(code);
@@ -40,8 +45,15 @@ export function RoomCodeBlock({ code }: RoomCodeBlockProps) {
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  const handleCopyLink = async () => {
+    const ok = await copyText(inviteUrl);
+    if (!ok) return;
+    setLinkCopied(true);
+    window.setTimeout(() => setLinkCopied(false), 1600);
+  };
+
   return (
-    <div className="room-code-block">
+    <motion.div className="room-code-block">
       <span className="room-code-label">Room code</span>
       <motion.button
         type="button"
@@ -94,6 +106,19 @@ export function RoomCodeBlock({ code }: RoomCodeBlockProps) {
         )}
       </AnimatePresence>
       {!copied && <span className="copy-hint">Click code to copy</span>}
-    </div>
+
+      <motion.button
+        type="button"
+        className={`btn btn-ghost room-link-btn${linkCopied ? ' copied' : ''}`}
+        onClick={() => void handleCopyLink()}
+        whileTap={{ scale: 0.98 }}
+      >
+        <Icon name={linkCopied ? 'check' : 'copy'} size={14} />
+        <span>{linkCopied ? 'Link copied!' : 'Copy invite link'}</span>
+      </motion.button>
+      <p className="room-link-preview" title={inviteUrl}>
+        {inviteUrl}
+      </p>
+    </motion.div>
   );
 }

@@ -10,16 +10,28 @@ import {
   createRoom,
   joinRoom,
   findMatch,
+  leaveQueue,
   sendAction,
   reportTimeout,
   onState,
   onMatched,
   onOpponentLeft,
+  onOpponentReconnected,
   onEloUpdate,
   clearAllListeners,
   disconnectSocket,
+  startMatchmakingWarmup,
+  stopMatchmakingWarmup,
   type MatchPlayers,
 } from '../net/socket';
+import {
+  parsePath,
+  stashPendingJoinCode,
+  stashPendingRejoinRoom,
+  takePendingJoinCode,
+  takePendingRejoinRoom,
+} from '../lib/routes';
+import { syncRouteFromStore } from '../lib/syncRoute';
 import { useAuthStore } from './authStore';
 import type { BotDifficulty, Player } from '../game/types';
 
@@ -107,7 +119,13 @@ interface GameStore {
   stopClock: () => void;
   tickClock: () => void;
   leaveGame: () => void;
+  hydrateFromUrl: () => Promise<void>;
   displayState: () => GameState;
+}
+
+function pushRoute(get: () => GameStore): void {
+  const { screen, gameMode, roomId, waitingForOpponent } = get();
+  syncRouteFromStore(screen, gameMode, roomId, waitingForOpponent);
 }
 
 function canAct(state: GameState, myColor: Player | null, aiThinking: boolean): boolean {
@@ -180,6 +198,7 @@ function bindOnlineHandlers(
   });
   onMatched((data) => {
     unlockChessAudio();
+    stopMatchmakingWarmup();
     set({
       state: data.state,
       roomId: data.roomId,
@@ -189,10 +208,15 @@ function bindOnlineHandlers(
       screen: 'game',
     });
     get().startClock();
+    pushRoute(get);
   });
   onOpponentLeft(() =>
-    set({ onlineError: 'Opponent disconnected.', waitingForOpponent: true }),
+    set({ onlineError: 'Opponent disconnected — they may reconnect.', waitingForOpponent: false }),
   );
+  onOpponentReconnected(() => {
+    set({ onlineError: null });
+    get().pushToast('Opponent reconnected.', 'success');
+  });
   onEloUpdate((payload) => {
     const { myColor } = get();
     if (!myColor) return;
@@ -466,6 +490,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   openLobby: () => {
     get().cancelBotSchedule();
     get().stopClock();
+    leaveQueue();
+    stopMatchmakingWarmup();
     clearAllListeners();
     disconnectSocket();
     set({
@@ -485,6 +511,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       premove: null,
       premoveDraft: null,
     });
+    pushRoute(get);
   },
 
   showBotPicker: () => set({ screen: 'bot-pick', onlineError: null }),
@@ -534,6 +561,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         onlineLoading: false,
         waitingForOpponent: true,
       });
+      pushRoute(get);
     } catch (e) {
       set({ onlineLoading: false, onlineError: onlineErrorMessage(e) });
     }
@@ -561,6 +589,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         waitingForOpponent: false,
       });
       get().startClock();
+      pushRoute(get);
     } catch (e) {
       set({ onlineLoading: false, onlineError: onlineErrorMessage(e) });
     }
@@ -568,11 +597,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startRandomMatch: async () => {
     set({ onlineLoading: true, onlineError: null, eloMessage: null });
+    startMatchmakingWarmup();
     try {
       await connectSocket();
       bindOnlineHandlers(set, get);
       const res = await findMatch();
       if (res.state && res.roomId && res.color && res.players) {
+        stopMatchmakingWarmup();
         set({
           screen: 'game',
           gameMode: 'online',
@@ -584,19 +615,97 @@ export const useGameStore = create<GameStore>((set, get) => ({
           waitingForOpponent: false,
         });
         get().startClock();
+        pushRoute(get);
       } else if (res.queued) {
         set({
           screen: 'waiting',
           gameMode: 'online',
+          roomId: null,
           onlineLoading: false,
           waitingForOpponent: true,
           onlineError: null,
         });
+        pushRoute(get);
       } else {
+        stopMatchmakingWarmup();
         set({ onlineLoading: false, onlineError: res.error ?? 'Match failed' });
       }
     } catch (e) {
+      stopMatchmakingWarmup();
       set({ onlineLoading: false, onlineError: onlineErrorMessage(e) });
+    }
+  },
+
+  hydrateFromUrl: async () => {
+    const route = parsePath(window.location.pathname);
+    const pendingJoin = takePendingJoinCode();
+    const pendingRejoin = takePendingRejoinRoom();
+
+    if (route.kind === 'home' && !pendingJoin && !pendingRejoin) {
+      if (get().screen !== 'lobby' && get().gameMode === 'online') {
+        get().openLobby();
+      }
+      return;
+    }
+
+    const session = useAuthStore.getState().session;
+
+    if (route.kind === 'join' || pendingJoin) {
+      const code = route.kind === 'join' ? route.roomId : pendingJoin!;
+      if (!session) {
+        stashPendingJoinCode(code);
+        useAuthStore.getState().setPendingReturn('join-code');
+        set({ screen: 'join-code', onlineError: null });
+        return;
+      }
+      set({ screen: 'join-code' });
+      await get().startJoinGame(code);
+      return;
+    }
+
+    if (route.kind === 'game' || pendingRejoin) {
+      const code = route.kind === 'game' ? route.roomId : pendingRejoin!;
+      if (!session) {
+        stashPendingRejoinRoom(code);
+        useAuthStore.getState().setPendingReturn('join-code');
+        set({ screen: 'auth', onlineError: null });
+        return;
+      }
+      set({ onlineLoading: true, onlineError: null });
+      try {
+        await connectSocket();
+        bindOnlineHandlers(set, get);
+        const { roomId, color, state, players } = await joinRoom(code);
+        const waiting = !players.black;
+        set({
+          screen: waiting ? 'waiting' : 'game',
+          gameMode: 'online',
+          roomId,
+          myColor: color,
+          state,
+          playerNames: namesFromPlayers(players),
+          onlineLoading: false,
+          waitingForOpponent: waiting,
+        });
+        if (!waiting) get().startClock();
+        pushRoute(get);
+      } catch (e) {
+        set({
+          onlineLoading: false,
+          onlineError: onlineErrorMessage(e),
+          screen: 'join-code',
+        });
+      }
+      return;
+    }
+
+    if (route.kind === 'queue') {
+      if (!session) {
+        useAuthStore.getState().setPendingReturn('waiting');
+        set({ screen: 'auth', onlineError: null });
+        return;
+      }
+      await get().startRandomMatch();
     }
   },
 

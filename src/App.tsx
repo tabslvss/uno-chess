@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { parsePath } from './lib/routes';
 import { motion } from 'framer-motion';
 import { Tutorial } from './components/Tutorial';
 import { Lobby } from './components/Lobby';
@@ -41,11 +42,21 @@ export default function App() {
   const afterAuth = () => {
     const target = (pendingReturn as Screen | null) ?? 'lobby';
     setPendingReturn(null);
+    const route = parsePath(window.location.pathname);
+    if (route.kind !== 'home') {
+      void useGameStore.getState().hydrateFromUrl();
+      return;
+    }
     if (target === 'friend-menu') showFriendMenu();
     else if (target === 'join-code') showJoinCode();
     else if (target === 'waiting') void startRandomMatch();
     else useGameStore.setState({ screen: target });
   };
+
+  const joinRouteCode = useMemo(() => {
+    const route = parsePath(window.location.pathname);
+    return route.kind === 'join' ? route.roomId : '';
+  }, [screen]);
 
   const rawState = useGameStore((s) => s.state);
   const boardOrientation: Player = myColor ?? 'white';
@@ -133,6 +144,7 @@ export default function App() {
           onBack={showFriendMenu}
           error={onlineError ?? undefined}
           loading={onlineLoading}
+          initialCode={joinRouteCode}
           onClearError={() => useGameStore.setState({ onlineError: null })}
         />
       </div>
@@ -175,8 +187,8 @@ export default function App() {
             {roomId && <RoomCodeBlock code={roomId} />}
             <p className="waiting-hint">
               {roomId
-                ? 'Share the code with your friend. The game will start as soon as they join.'
-                : 'We’re matching you with someone close to your ELO.'}
+                ? 'Share the invite link — your friend can open it to join instantly.'
+                : 'We’re matching you with someone close to your ELO. First match after idle can take up to a minute while the server wakes up.'}
             </p>
             <button type="button" className="btn btn-ghost" onClick={leaveGame}>
               Cancel

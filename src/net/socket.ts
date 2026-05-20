@@ -33,11 +33,11 @@ async function probeGameServer(): Promise<void> {
   // Local dev: empty VITE_SERVER_URL → use Vite proxy (/health → :3001)
   const healthUrl = URL ? `${URL.replace(/\/$/, '')}/health` : '/health';
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 4_000);
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
   try {
     const res = await fetch(healthUrl, { signal: ctrl.signal });
     if (!res.ok) throw new Error('Game server unavailable');
-  } catch {
+  } catch (err) {
     if (!URL && import.meta.env.PROD) {
       throw new Error(
         'Online play is not set up yet. Host the game API on Render (free), then add VITE_SERVER_URL on Vercel. See HOSTING.md in the project.',
@@ -48,8 +48,14 @@ async function probeGameServer(): Promise<void> {
         'Game server is not running. Open a terminal in the project folder and run: npm run dev',
       );
     }
+    const aborted = err instanceof DOMException && err.name === 'AbortError';
+    if (aborted) {
+      throw new Error(
+        'Game server is waking up (Render free tier). Wait up to a minute and try again.',
+      );
+    }
     throw new Error(
-      'Game server is offline or waking up (Render free tier sleeps after ~15 min). Wait 30 seconds and try again.',
+      'Cannot reach the game server. If it was idle, wait a minute and retry.',
     );
   } finally {
     clearTimeout(timer);

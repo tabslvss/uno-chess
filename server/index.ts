@@ -109,6 +109,31 @@ const corsOrigin =
       };
 
 const app = express();
+
+function applyCors(req: express.Request, res: express.Response): void {
+  const origin = req.headers.origin;
+  if (origin) {
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Vary', 'Origin');
+    }
+  } else if (allowedOrigins.includes('*')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+app.use((req, res, next) => {
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: corsOrigin, credentials: true },

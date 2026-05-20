@@ -90,10 +90,7 @@ export function OnlineJoin({
                 exit={{ opacity: 0 }}
               >
                 {import.meta.env.PROD ? (
-                  <>
-                    Still connecting… If you use Render free tier, the server may be waking up
-                    (up to ~60 s). First time? See HOSTING.md to connect the API to Vercel.
-                  </>
+                  <>Still connecting…</>
                 ) : (
                   <>
                     Still connecting… Run <code>npm run dev</code> in the project folder (web +

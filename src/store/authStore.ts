@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { preconnectSocket, warmGameServer } from '../net/socket';
 import { supabase, supabaseConfigured, type Profile } from '../lib/supabase';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
@@ -133,6 +134,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       );
     }
     set({ session, profile, initialized: true });
+    if (session) void preconnectSocket();
 
     supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       let nextProfile: Profile | null = null;
@@ -145,6 +147,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         );
       }
       set({ session: nextSession, profile: nextProfile });
+      if (nextSession) void preconnectSocket();
     });
   },
 
@@ -234,6 +237,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       }
       await get().refreshProfile();
       set({ loading: false });
+      void warmGameServer(true);
+      void preconnectSocket();
       return true;
     }
 

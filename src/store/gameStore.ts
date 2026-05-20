@@ -155,9 +155,12 @@ function onlineErrorMessage(err: unknown): string {
   if (msg.includes('not set up yet') || msg.includes('hosting.md')) {
     return raw;
   }
+  if (msg.includes('connecting') || msg.includes('try again in a moment')) {
+    return 'Still connecting to the game server…';
+  }
   if (msg.includes('xhr poll error') || msg.includes('websocket error') || msg.includes('not connected')) {
     if (import.meta.env.PROD) {
-      return 'Can’t reach the game server. Deploy the API on Render and set VITE_SERVER_URL on Vercel (see HOSTING.md).';
+      return 'Lost connection to the game server. Try again.';
     }
     return 'Can’t reach the game server. Run npm run dev in the project folder (starts web + server).';
   }

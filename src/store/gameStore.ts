@@ -10,7 +10,7 @@ import {
   createRoom,
   joinRoom,
   findMatch,
-  leaveQueue,
+  abandonOnlineGame,
   sendAction,
   reportTimeout,
   onState,
@@ -551,29 +551,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
   openLobby: () => {
     get().cancelBotSchedule();
     get().stopClock();
-    leaveQueue();
     stopQueuePoll();
     stopMatchmakingWarmup();
-    clearAllListeners();
-    disconnectSocket();
-    set({
-      screen: 'lobby',
-      gameMode: null,
-      myColor: null,
-      aiColor: null,
-      timers: { white: TURN_SECONDS, black: TURN_SECONDS },
-      roomId: null,
-      state: UnoChess.newGame(),
-      onlineError: null,
-      onlineLoading: false,
-      waitingForOpponent: false,
-      eloMessage: null,
-      playerNames: null,
-      toasts: [],
-      premove: null,
-      premoveDraft: null,
-    });
-    pushRoute(get);
+    void (async () => {
+      try {
+        await abandonOnlineGame();
+      } catch {
+        /* ignore */
+      }
+      clearAllListeners();
+      disconnectSocket();
+      set({
+        screen: 'lobby',
+        gameMode: null,
+        myColor: null,
+        aiColor: null,
+        timers: { white: TURN_SECONDS, black: TURN_SECONDS },
+        roomId: null,
+        state: UnoChess.newGame(),
+        onlineError: null,
+        onlineLoading: false,
+        waitingForOpponent: false,
+        eloMessage: null,
+        playerNames: null,
+        toasts: [],
+        premove: null,
+        premoveDraft: null,
+      });
+      pushRoute(get);
+    })();
   },
 
   showBotPicker: () => set({ screen: 'bot-pick', onlineError: null }),
@@ -610,9 +616,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startCreateGame: async () => {
     dbg('startCreateGame begin');
-    set({ onlineLoading: true, onlineError: null, eloMessage: null });
+    set({
+      onlineLoading: true,
+      onlineError: null,
+      eloMessage: null,
+      roomId: null,
+      waitingForOpponent: false,
+      playerNames: null,
+    });
     try {
       await connectSocket();
+      await abandonOnlineGame();
       dbg('startCreateGame — socket connected, sending createRoom');
       bindOnlineHandlers(set, get);
       const { roomId, color, state } = await createRoom();
@@ -639,7 +653,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
     dbg('startJoinGame', trimmed);
-    set({ onlineLoading: true, onlineError: null, eloMessage: null });
+    set({
+      onlineLoading: true,
+      onlineError: null,
+      eloMessage: null,
+      roomId: null,
+      waitingForOpponent: false,
+    });
     try {
       await connectSocket();
       dbg('startJoinGame — socket connected, sending joinRoom');
@@ -665,11 +685,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startRandomMatch: async () => {
     dbg('startRandomMatch begin');
-    set({ onlineLoading: true, onlineError: null, eloMessage: null });
+    set({
+      onlineLoading: true,
+      onlineError: null,
+      eloMessage: null,
+      roomId: null,
+      waitingForOpponent: false,
+      playerNames: null,
+    });
     startMatchmakingWarmup();
     void logServerMatchmakerVersion();
     try {
       await connectSocket();
+      await abandonOnlineGame();
       dbg('startRandomMatch — socket connected, binding handlers');
       bindOnlineHandlers(set, get);
       const res = await findMatch();

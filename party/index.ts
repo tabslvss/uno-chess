@@ -15,7 +15,7 @@ function installEnvBridge(env: Record<string, unknown>): void {
 }
 
 /** Bump when matchmaking logic changes — exposed on /health */
-const MATCHMAKER_VERSION = 4;
+const MATCHMAKER_VERSION = 5;
 
 interface Room {
   id: string;
@@ -201,10 +201,73 @@ export default class UnoChessParty implements Party.Server {
       if (room.white === conn.id) room.white = null;
       if (room.black === conn.id) room.black = null;
       if (!room.white && !room.black) {
-        if (room.state.phase === 'gameOver') this.rooms.delete(id);
+        this.rooms.delete(id);
       } else {
         this.emitToGameRoom(id, 'opponentLeft', {});
       }
+    }
+  }
+
+  /** Drop this user from every game/queue except an optional room they are rejoining. */
+  private abandonUserRooms(userId: string, connId: string, exceptRoomId?: string): void {
+    const except = exceptRoomId?.toUpperCase();
+    const targets: string[] = [];
+    for (const [id, room] of this.rooms) {
+      if (except && id === except) continue;
+      if (room.whiteUserId === userId || room.blackUserId === userId) targets.push(id);
+    }
+
+    for (const id of targets) {
+      const room = this.rooms.get(id);
+      if (!room) continue;
+
+      const asWhite = room.whiteUserId === userId;
+      const asBlack = room.blackUserId === userId;
+      const soloWaiting =
+        room.state.phase !== 'gameOver' && asWhite && !room.blackUserId;
+
+      if (soloWaiting) {
+        if (room.white === connId) room.white = null;
+        room.whiteUserId = null;
+        this.rooms.delete(id);
+        if (this.gameRoomByConn.get(connId) === id) this.gameRoomByConn.delete(connId);
+        log('abandon solo waiting room', { id, userId });
+        continue;
+      }
+
+      const inProgress = room.state.phase !== 'gameOver';
+      if (inProgress) {
+        const forfeiter: Player = asWhite ? 'white' : 'black';
+        const winner: Player = forfeiter === 'white' ? 'black' : 'white';
+        room.state = {
+          ...room.state,
+          phase: 'gameOver',
+          result: winner,
+          resultReason: 'Opponent left the game.',
+          message: `${winner} wins — opponent left.`,
+        };
+        this.emitToGameRoom(id, 'state', room.state);
+        void this.onGameOver(room);
+      }
+
+      if (asWhite) {
+        if (room.white === connId) room.white = null;
+        room.whiteUserId = null;
+      }
+      if (asBlack) {
+        if (room.black === connId) room.black = null;
+        room.blackUserId = null;
+      }
+      if (this.gameRoomByConn.get(connId) === id) this.gameRoomByConn.delete(connId);
+
+      const noUsers = !room.whiteUserId && !room.blackUserId;
+      const noSockets = !room.white && !room.black;
+      if (noUsers || noSockets) {
+        this.rooms.delete(id);
+      } else {
+        this.emitToGameRoom(id, 'opponentLeft', {}, connId);
+      }
+      log('abandon room', { id, userId });
     }
   }
 
@@ -353,6 +416,10 @@ export default class UnoChessParty implements Party.Server {
       case 'leaveQueue':
         this.removeFromQueue(conn.id);
         return { ok: true };
+      case 'abandonGame':
+        this.removeFromQueue(conn.id);
+        this.abandonUserRooms(user.id, conn.id);
+        return { ok: true };
       case 'action':
         return this.rpcAction(conn, args[0] as { roomId: string; action: GameAction });
       case 'reportTimeout':
@@ -363,6 +430,7 @@ export default class UnoChessParty implements Party.Server {
   }
 
   private rpcCreateRoom(conn: Party.Connection, user: SocketUser) {
+    this.abandonUserRooms(user.id, conn.id);
     const roomId = genCode();
     const state = createGame();
     const room: Room = {
@@ -387,6 +455,9 @@ export default class UnoChessParty implements Party.Server {
     if (!room) throw new Error('Room not found');
 
     const existing = this.playerSlot(room, user.id);
+    if (!existing) {
+      this.abandonUserRooms(user.id, conn.id, code);
+    }
     if (existing) {
       if (existing === 'white') room.white = conn.id;
       else room.black = conn.id;
@@ -418,6 +489,7 @@ export default class UnoChessParty implements Party.Server {
   }
 
   private rpcFindMatch(conn: Party.Connection, user: SocketUser) {
+    this.abandonUserRooms(user.id, conn.id);
     this.removeFromQueue(conn.id);
     const entry: QueueEntry = {
       socketId: conn.id,

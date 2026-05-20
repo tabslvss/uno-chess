@@ -314,6 +314,17 @@ export function leaveQueue(): void {
   }
 }
 
+/** Leave queue and forfeit / close any in-progress or waiting games on the server. */
+export async function abandonOnlineGame(): Promise<void> {
+  leaveQueue();
+  if (socket?.readyState !== WebSocket.OPEN) return;
+  try {
+    await emitRpc<{ ok: boolean }>('abandonGame');
+  } catch {
+    /* ignore — starting fresh locally anyway */
+  }
+}
+
 export function startMatchmakingWarmup(): void {
   stopMatchmakingWarmup();
   void warmGameServer(true);
@@ -384,7 +395,7 @@ export async function logServerMatchmakerVersion(): Promise<void> {
     const res = await fetch(healthUrl());
     const data = (await res.json()) as { matchmaker?: number; partykit?: boolean };
     log('API health', data);
-    if (!data.partykit || (data.matchmaker ?? 0) < 4) {
+    if (!data.partykit || (data.matchmaker ?? 0) < 5) {
       log('WARNING: PartyKit API may be outdated — run partykit deploy');
     }
   } catch (e) {

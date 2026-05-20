@@ -52,6 +52,41 @@ function log(...args: unknown[]): void {
   console.log('[unochess-party]', ...args);
 }
 
+function allowedOriginsFromEnv(env: Record<string, unknown>): string[] {
+  const raw = String(env.ALLOWED_ORIGINS ?? '');
+  return raw
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+function corsHeaders(req: Party.Request, env: Record<string, unknown>): Headers {
+  const headers = new Headers();
+  const origin = req.headers.get('Origin');
+  const allowed = allowedOriginsFromEnv(env);
+
+  if (origin && (allowed.includes('*') || allowed.includes(origin))) {
+    headers.set('Access-Control-Allow-Origin', origin);
+    headers.set('Vary', 'Origin');
+  } else if (allowed.includes('*')) {
+    headers.set('Access-Control-Allow-Origin', '*');
+  }
+
+  headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return headers;
+}
+
+function withCors(req: Party.Request, response: Response, env: Record<string, unknown>): Response {
+  const merged = new Headers(response.headers);
+  corsHeaders(req, env).forEach((value, key) => merged.set(key, value));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: merged,
+  });
+}
+
 function genCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -80,17 +115,28 @@ export default class UnoChessParty implements Party.Server {
   }
 
   onRequest(req: Party.Request): Response {
+    const env = this.room.env as Record<string, unknown>;
+    installEnvBridge(env);
+
+    if (req.method === 'OPTIONS') {
+      return withCors(req, new Response(null, { status: 204 }), env);
+    }
+
     const url = new URL(req.url);
     if (url.pathname.endsWith('/health')) {
-      return Response.json({
-        ok: true,
-        partykit: true,
-        matchmaker: MATCHMAKER_VERSION,
-        queueSize: this.queue.length,
-        rooms: this.rooms.size,
-      });
+      return withCors(
+        req,
+        Response.json({
+          ok: true,
+          partykit: true,
+          matchmaker: MATCHMAKER_VERSION,
+          queueSize: this.queue.length,
+          rooms: this.rooms.size,
+        }),
+        env,
+      );
     }
-    return new Response('UnoChess PartyKit', { status: 200 });
+    return withCors(req, new Response('UnoChess PartyKit', { status: 200 }), env);
   }
 
   async onConnect(conn: Party.Connection, _ctx: Party.ConnectionContext): Promise<void> {

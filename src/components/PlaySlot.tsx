@@ -1,38 +1,67 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { UnoCardView } from './UnoCardView';
 import type { UnoCard } from '../game/types';
 import './PlaySlot.css';
 
 interface PlaySlotProps {
-  card: UnoCard | null;
+  cards: UnoCard[];
 }
 
-export function PlaySlot({ card }: PlaySlotProps) {
+function stackOffset(index: number, total: number) {
+  const depth = total - 1 - index;
+  const rot = ((index % 5) - 2) * 2.5;
+  return {
+    x: depth * 5,
+    y: -depth * 4,
+    rotate: rot,
+    zIndex: index,
+  };
+}
+
+export function PlaySlot({ cards }: PlaySlotProps) {
+  if (cards.length === 0) {
+    return (
+      <motion.div
+        className="play-slot-stack play-slot-stack--empty"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <motion.div className="play-slot-empty" />
+      </motion.div>
+    );
+  }
+
+  const topId = cards[cards.length - 1]!.id;
+
   return (
-    <div className="play-slot-single">
-      <AnimatePresence mode="wait">
-        {card ? (
+    <motion.div className="play-slot-stack" layout>
+      {cards.map((card, index) => {
+        const isTop = card.id === topId;
+        const offset = stackOffset(index, cards.length);
+
+        return (
           <motion.div
             key={card.id}
             className="play-slot-card"
-            // Card flies from the bottom hand and grows to flank size
-            initial={{ scale: 0.45, opacity: 0, y: 280, rotate: -8 }}
-            animate={{ scale: 1, opacity: 1, y: 0, rotate: 3 }}
-            exit={{ scale: 0.5, opacity: 0, y: 30, rotate: 8 }}
+            style={{ zIndex: offset.zIndex }}
+            initial={
+              isTop
+                ? { scale: 0.45, opacity: 0, y: 280, rotate: -8, x: 0 }
+                : false
+            }
+            animate={{
+              scale: 1,
+              opacity: 1,
+              y: offset.y,
+              x: offset.x,
+              rotate: offset.rotate,
+            }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
           >
             <UnoCardView card={card} large />
           </motion.div>
-        ) : (
-          <motion.div
-            key="empty"
-            className="play-slot-empty"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          />
-        )}
-      </AnimatePresence>
-    </div>
+        );
+      })}
+    </motion.div>
   );
 }

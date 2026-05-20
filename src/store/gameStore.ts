@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { UnoChess, randomPlayer, type GameState, type Color, type PieceType, type Square, type GameAction } from '../game/api';
 import { runAiStep } from '../game/ai';
 import { isReverseBonusPending, allCardsUnplayable } from '../game/engine';
+import { getLegalMovesForPiece } from '../game/chess';
+import { squareLabel } from '../game/uno';
+import { playSoundForStateTransition, unlockChessAudio } from '../lib/chessSounds';
 import {
   connectSocket,
   createRoom,
@@ -36,13 +39,23 @@ const BOT_MOVE_DELAY_MS = 600;
 const BOT_REVERSE_CHAIN_MS = 400;
 const BOT_WILD_PICK_MS = 250;
 const TURN_SECONDS = 600; // 10 minutes per player
+const TOAST_MS = 3200;
+
+export type ToastKind = 'info' | 'success' | 'warn' | 'error';
+
+export interface GameToast {
+  id: string;
+  text: string;
+  kind: ToastKind;
+}
+
+let toastSeq = 0;
 
 interface GameStore {
   screen: Screen;
   gameMode: GameMode | null;
   state: GameState;
   tutorialDone: boolean;
-  promotionPending: { from: Square; to: Square } | null;
   botDifficulty: BotDifficulty;
   aiColor: Player | null;
   myColor: Player | null;
@@ -59,6 +72,14 @@ interface GameStore {
   timers: Record<Player, number>;
   timerInterval: ReturnType<typeof setInterval> | null;
   canDiscardRedraw: () => boolean;
+  toasts: GameToast[];
+  premove: { from: Square; to: Square } | null;
+  premoveDraft: Square | null;
+
+  pushToast: (text: string, kind?: ToastKind) => void;
+  queuePremoveSquare: (sq: Square) => void;
+  clearPremove: () => void;
+  tryConsumePremove: () => void;
 
   openLobby: () => void;
   showBotPicker: () => void;
@@ -98,11 +119,47 @@ function botThinkDelayMs(): number {
   return BOT_THINK_MIN_MS + Math.random() * (BOT_THINK_MAX_MS - BOT_THINK_MIN_MS);
 }
 
+function toastKindForMessage(text: string): ToastKind {
+  const t = text.toLowerCase();
+  if (t.includes('checkmate') || t.includes('wins')) return 'success';
+  if (t.includes('in check') || t.includes('check')) return 'warn';
+  if (t.includes('draw') || t.includes('stalemate')) return 'info';
+  if (t.includes('skip') || t.includes('bonus') || t.includes('reverse')) return 'info';
+  return 'info';
+}
+
+function feedbackForTransition(prev: GameState, next: GameState): string | null {
+  if (next.message !== prev.message) return next.message;
+  if (next.lastEvent?.type === 'draw' && next.lastEvent.cardId !== prev.lastEvent?.cardId) {
+    return 'Drew a card.';
+  }
+  if (next.lastEvent?.type === 'play' && next.lastEvent.cardId !== prev.lastEvent?.cardId) {
+    return 'Card played.';
+  }
+  if (next.phase === 'chess' && prev.phase === 'playCard') return 'Make your chess move.';
+  if (next.phase === 'gameOver' && prev.phase !== 'gameOver') return next.message;
+  return null;
+}
+
 function namesFromPlayers(players: MatchPlayers): Record<Player, string> {
   return {
     white: players.white.username,
     black: players.black?.username ?? 'Opponent',
   };
+}
+
+function applyGameState(
+  get: () => GameStore,
+  set: (partial: Partial<GameStore> | ((s: GameStore) => Partial<GameStore>)) => void,
+  next: GameState,
+  extra?: Partial<GameStore>,
+): void {
+  const prev = get().state;
+  set({ state: next, ...extra });
+  const note = feedbackForTransition(prev, next);
+  if (note) get().pushToast(note, toastKindForMessage(note));
+  playSoundForStateTransition(prev, next);
+  get().tryConsumePremove();
 }
 
 function bindOnlineHandlers(
@@ -114,8 +171,7 @@ function bindOnlineHandlers(
 
   onState((s) => {
     const { gameMode, screen } = get();
-    set({
-      state: s,
+    applyGameState(get, set, s, {
       waitingForOpponent: false,
       screen: gameMode === 'online' && screen !== 'game' ? 'game' : screen,
     });
@@ -123,6 +179,7 @@ function bindOnlineHandlers(
     else if (!get().timerInterval) get().startClock();
   });
   onMatched((data) => {
+    unlockChessAudio();
     set({
       state: data.state,
       roomId: data.roomId,
@@ -183,7 +240,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameMode: null,
   state: UnoChess.newGame(),
   tutorialDone: localStorage.getItem('unochess-tutorial') === 'done',
-  promotionPending: null,
   botDifficulty: 'medium',
   aiColor: null,
   myColor: null,
@@ -197,6 +253,78 @@ export const useGameStore = create<GameStore>((set, get) => ({
   aiTimeoutId: null,
   timers: { white: TURN_SECONDS, black: TURN_SECONDS },
   timerInterval: null,
+  toasts: [],
+  premove: null,
+  premoveDraft: null,
+
+  pushToast: (text, kind = 'info') => {
+    const id = `toast-${++toastSeq}`;
+    set((s) => ({ toasts: [...s.toasts, { id, text, kind }] }));
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+    }, TOAST_MS);
+  },
+
+  clearPremove: () => set({ premove: null, premoveDraft: null }),
+
+  queuePremoveSquare: (sq) => {
+    const { premoveDraft, myColor, state } = get();
+    if (!myColor || state.currentPlayer === myColor || state.phase === 'gameOver') return;
+
+    if (!premoveDraft) {
+      set({ premoveDraft: sq });
+      get().pushToast(`Premove from ${squareLabel(sq)} — click destination`, 'info');
+      return;
+    }
+
+    if (premoveDraft.file === sq.file && premoveDraft.rank === sq.rank) {
+      get().clearPremove();
+      get().pushToast('Premove cleared', 'info');
+      return;
+    }
+
+    set({
+      premove: { from: premoveDraft, to: sq },
+      premoveDraft: null,
+    });
+    get().pushToast(
+      `Premove: ${squareLabel(premoveDraft)} → ${squareLabel(sq)}`,
+      'success',
+    );
+  },
+
+  tryConsumePremove: () => {
+    const { state, myColor, premove, aiThinking } = get();
+    if (!premove || !myColor || aiThinking) return;
+    if (state.phase !== 'chess' || state.currentPlayer !== myColor || !state.activeCard) return;
+
+    const legal = getLegalMovesForPiece(state, premove.from, state.activeCard);
+    const ok = legal.some((t) => t.file === premove.to.file && t.rank === premove.to.rank);
+    if (!ok) {
+      get().pushToast('Premove illegal with this card — cleared', 'warn');
+      get().clearPremove();
+      return;
+    }
+
+    const piece = state.board[premove.from.rank]?.[premove.from.file];
+    if (piece?.type === 'pawn' && (premove.to.rank === 0 || premove.to.rank === 7)) {
+      get().clearPremove();
+      set({
+        state: {
+          ...state,
+          selectedSquare: premove.from,
+          pendingPromotion: { from: premove.from, to: premove.to },
+          message: 'Choose promotion.',
+        },
+      });
+      get().pushToast('Choose a piece to promote to', 'info');
+      return;
+    }
+
+    get().clearPremove();
+    get().dispatch({ type: 'move', from: premove.from, to: premove.to });
+    get().pushToast(`Premove executed: ${squareLabel(premove.from)} → ${squareLabel(premove.to)}`, 'success');
+  },
 
   canDiscardRedraw: () => {
     const { state, myColor, aiThinking } = get();
@@ -296,7 +424,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state = runStep(state);
     }
 
-    set({ state, aiTimeoutId: null });
+    applyGameState(get, set, state, { aiTimeoutId: null });
 
     if (state.phase === 'gameOver' || state.currentPlayer !== aiColor) {
       get().cancelBotSchedule();
@@ -322,11 +450,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     if (state.phase === 'pickWildColor') {
       const wildId = setTimeout(() => get().runBotStep(), BOT_WILD_PICK_MS);
-      set({ aiTimeoutId: wildId });
+      set({ aiTimeoutId: wildId, aiThinking: true });
       return;
     }
 
-    get().scheduleBotTurn();
+    if (state.currentPlayer === aiColor && state.phase === 'playCard') {
+      const id = setTimeout(() => get().runBotStep(), botThinkDelayMs());
+      set({ aiTimeoutId: id, aiThinking: true });
+      return;
+    }
+
+    get().cancelBotSchedule();
   },
 
   openLobby: () => {
@@ -342,12 +476,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       timers: { white: TURN_SECONDS, black: TURN_SECONDS },
       roomId: null,
       state: UnoChess.newGame(),
-      promotionPending: null,
       onlineError: null,
       onlineLoading: false,
       waitingForOpponent: false,
       eloMessage: null,
       playerNames: null,
+      toasts: [],
+      premove: null,
+      premoveDraft: null,
     });
   },
 
@@ -372,11 +508,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       aiColor,
       roomId: null,
       state: UnoChess.newGame(),
-      promotionPending: null,
       waitingForOpponent: false,
       playerNames: null,
       timers: { white: TURN_SECONDS, black: TURN_SECONDS },
     });
+    unlockChessAudio();
     get().startClock();
     if (aiColor === 'white') {
       get().scheduleBotTurn();
@@ -483,20 +619,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
       sendAction(roomId, action);
       return;
     }
+    unlockChessAudio();
     const next = UnoChess.apply(state, action).state;
-    set({ state: next });
-    if (gameMode === 'bot' && myColor && next.currentPlayer !== myColor && next.phase !== 'gameOver') {
-      get().scheduleBotTurn();
+    applyGameState(get, set, next);
+    if (gameMode === 'bot' && myColor && next.phase !== 'gameOver') {
+      if (next.currentPlayer !== myColor) {
+        get().scheduleBotTurn();
+      } else if (next.phase === 'playCard' && (next.extraCardPlays ?? 0) === 0) {
+        get().cancelBotSchedule();
+      }
     }
   },
 
-  playCard: (id, wild) => get().dispatch({ type: 'playCard', cardId: id, wildColor: wild }),
+  playCard: (id, wild) => {
+    unlockChessAudio();
+    get().dispatch({ type: 'playCard', cardId: id, wildColor: wild });
+  },
   pickWild: (c) => get().dispatch({ type: 'pickWild', color: c }),
   veto: (cardId) => get().dispatch({ type: 'veto', cardId }),
   concedeCapture: () => get().dispatch({ type: 'acceptCapture' }),
 
   tapSquare: (sq) => {
+    unlockChessAudio();
     const { state, myColor, aiThinking } = get();
+    if (
+      myColor &&
+      !aiThinking &&
+      state.currentPlayer !== myColor &&
+      state.phase !== 'gameOver'
+    ) {
+      get().queuePremoveSquare(sq);
+      return;
+    }
     if (!canAct(state, myColor, aiThinking) || state.phase !== 'chess') return;
     const sel = state.selectedSquare;
     if (sel) {
@@ -504,7 +658,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const isTarget = targets.some((t) => t.file === sq.file && t.rank === sq.rank);
       const piece = state.board[sel.rank][sel.file];
       if (isTarget && piece?.type === 'pawn' && (sq.rank === 0 || sq.rank === 7)) {
-        set({ promotionPending: { from: sel, to: sq } });
+        set({
+          state: {
+            ...state,
+            selectedSquare: sel,
+            pendingPromotion: { from: sel, to: sq },
+            message: 'Choose promotion.',
+          },
+        });
         return;
       }
     }
@@ -512,26 +673,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   movePiece: (from, to) => {
+    unlockChessAudio();
     const { state, myColor, aiThinking } = get();
     if (!canAct(state, myColor, aiThinking)) return;
     const piece = state.board[from.rank][from.file];
     if (piece?.type === 'pawn' && (to.rank === 0 || to.rank === 7)) {
-      set({ promotionPending: { from, to } });
+      set({
+        state: {
+          ...state,
+          selectedSquare: from,
+          pendingPromotion: { from, to },
+          message: 'Choose promotion.',
+        },
+      });
       return;
     }
     get().dispatch({ type: 'move', from, to });
   },
 
   promote: (piece) => {
-    const { promotionPending } = get();
-    if (!promotionPending) return;
+    unlockChessAudio();
+    const { state } = get();
+    const pending = state.pendingPromotion;
+    if (!pending || state.phase !== 'chess') return;
     get().dispatch({
       type: 'move',
-      from: promotionPending.from,
-      to: promotionPending.to,
+      from: pending.from,
+      to: pending.to,
       promotion: piece,
     });
-    set({ promotionPending: null });
   },
 
   leaveGame: () => get().openLobby(),

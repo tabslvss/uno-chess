@@ -1,5 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { cardCanBePlayed, cardRejectReason } from '../game/engine';
 import type { GameState, Player, UnoCard } from '../game/types';
+import { useGameStore } from '../store/gameStore';
 import { UnoCardView } from './UnoCardView';
 import { CardBack } from './CardBack';
 
@@ -12,8 +14,6 @@ interface HandProps {
   onPlay: (id: string) => void;
   compact?: boolean;
   horizontal?: boolean;
-  /** After Reverse: only this drawn card may be played */
-  mustPlayCardId?: string | null;
 }
 
 export function Hand({
@@ -25,15 +25,10 @@ export function Hand({
   onPlay,
   compact = false,
   horizontal = false,
-  mustPlayCardId = null,
 }: HandProps) {
+  const pushToast = useGameStore((s) => s.pushToast);
   const hand = state.hands[player];
-  const reverseBonus = Boolean(mustPlayCardId);
-  const canPlay =
-    isActive &&
-    canControl &&
-    state.phase === 'playCard' &&
-    (!mustPlayCardId || hand.some((c) => c.id === mustPlayCardId));
+  const canPlay = isActive && canControl && state.phase === 'playCard';
 
   return (
     <motion.div
@@ -52,11 +47,7 @@ export function Hand({
         <p className={`player-label ${isActive ? 'active' : ''}`}>
           {player === 'white' ? 'White' : 'Black'}
           {hidden ? ' (hidden)' : ''}
-          {isActive
-            ? reverseBonus
-              ? ' — play the card you drew'
-              : ' — play a card'
-            : ''}
+          {isActive ? ' — play a card' : ''}
           <span className="hand-count"> · {hand.length} cards</span>
         </p>
       )}
@@ -71,6 +62,7 @@ export function Hand({
             : hand.map((card: UnoCard) => {
                 const justDrawn = state.lastEvent?.type === 'draw' && state.lastEvent.cardId === card.id;
                 const justPlayed = state.lastEvent?.type === 'play' && state.lastEvent.cardId === card.id;
+                const playable = cardCanBePlayed(state, card);
                 return (
                   <motion.div
                     key={card.id}
@@ -86,13 +78,17 @@ export function Hand({
                   >
                     <UnoCardView
                       card={card}
-                      disabled={!canPlay || (mustPlayCardId != null && card.id !== mustPlayCardId)}
-                      selected={justPlayed || card.id === mustPlayCardId}
-                      onClick={() =>
-                        canPlay &&
-                        (mustPlayCardId == null || card.id === mustPlayCardId) &&
-                        onPlay(card.id)
-                      }
+                      disabled={!canPlay}
+                      dimmed={canPlay && !playable}
+                      selected={justPlayed}
+                      onClick={() => {
+                        if (!canPlay) return;
+                        if (!playable) {
+                          pushToast(cardRejectReason(state, card), 'warn');
+                          return;
+                        }
+                        onPlay(card.id);
+                      }}
                     />
                   </motion.div>
                 );

@@ -909,6 +909,10 @@ h1, h2, h3 {
 .color-btn.green  { background: var(--uno-green); color: #fff; }
 .color-btn.blue   { background: var(--uno-blue); color: #fff; }
 
+.promo-modal h2 {
+  margin-bottom: 0.35rem;
+}
+
 .promo-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -917,6 +921,11 @@ h1, h2, h3 {
 }
 
 .promo-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 5.5rem;
   padding: 0.65rem;
   border-radius: var(--radius);
   background: var(--surface-2);
@@ -928,6 +937,19 @@ h1, h2, h3 {
   transition: transform 0.1s, border-color 0.15s;
 }
 .promo-btn:hover { transform: translate(-1px, -1px); border-color: var(--text-soft); }
+
+.promo-glyph {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.promo-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
 
 /* ─── Misc ─────────────────────────────────────────────────── */
 .actions {

@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const STEPS = [
-  { title: 'Welcome to UNO Chess', body: 'Draw one card per turn, play it, then move on the unlocked rank and file.' },
-  { title: 'Cards A–G', body: 'A = rank 1 & a-file, B = rank 2 & b-file, through G = rank 7 & g-file.' },
+  { title: 'Welcome to UNO Chess', body: 'Draw one card per turn, play it, then move any piece on that card’s rank or file.' },
+  { title: 'Cards A–G', body: 'B unlocks rank 2 and the b-file — any of your pieces on those lines can make a normal legal move (pins and check still apply).' },
   {
     title: 'Specials',
-    body: 'Wild: any line. Reverse: undo opponent’s last move, draw a card, then move with that card. Skip: no chess move.',
+    body: 'Wild: any line. Reverse: undo opponent’s last move, draw a card, then play any card from your hand. Skip: opponent is skipped — you get two more full turns (card + move each). In check, you must escape check.',
   },
   { title: 'Modes', body: 'Create a game, find a random opponent, or play vs the bot online.' },
 ];

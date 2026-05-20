@@ -1,14 +1,23 @@
-.play-slot-single {
+.play-slot-stack {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   width: var(--card-width-lg);
   aspect-ratio: var(--card-aspect);
   flex-shrink: 0;
-  position: relative;
+  /* Room for stacked cards fanning up-left */
+  margin-top: 12px;
+  margin-left: 8px;
+}
+
+.play-slot-stack--empty {
+  margin-top: 0;
+  margin-left: 0;
 }
 
 .play-slot-card {
+  position: absolute;
   width: var(--card-width-lg);
   display: flex;
   align-items: center;
@@ -18,6 +27,7 @@
 }
 
 .play-slot-empty {
+  position: relative;
   width: 100%;
   height: 100%;
   border-radius: 12px;

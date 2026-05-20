@@ -59,8 +59,10 @@ export interface GameState {
   hands: Record<Player, UnoCard[]>;
   /** Central facedown "Uno Chess" draw pile */
   drawPile: UnoCard[];
-  /** Card played this turn — visible to both players */
+  /** Card played this turn (cleared between turns; use for rules UI) */
   playedCard: UnoCard | null;
+  /** All cards played this game — bottom to top, visible to both players */
+  playPile: UnoCard[];
   activeCard: UnoCard | null;
   wildPendingColor: Color | null;
   pendingCardId: string | null;
@@ -75,6 +77,10 @@ export interface GameState {
   castlingRights: CastlingRights;
   /** Drives play/draw animations in the UI */
   lastEvent: GameEvent;
+  /** After Skip: play another card + move before passing the turn */
+  extraCardPlays: number;
+  /** Pawn reached the back rank — waiting for promotion piece choice */
+  pendingPromotion: { from: Square; to: Square } | null;
 }
 
 export interface GameActionResult {

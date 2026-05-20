@@ -12,6 +12,7 @@ import { RoomCodeBlock } from './components/RoomCodeBlock';
 import { useAuthStore } from './store/authStore';
 import type { Screen } from './store/gameStore';
 import { GameScreen } from './components/GameScreen';
+import { ToastStack } from './components/ToastStack';
 import { TopNav } from './components/TopNav';
 import { useGameStore } from './store/gameStore';
 import type { Player } from './game/types';
@@ -194,6 +195,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <ToastStack />
       {!tutorialDone && <Tutorial onDone={finishTutorial} onSkip={finishTutorial} />}
 
       <TopNav

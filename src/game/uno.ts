@@ -1,4 +1,4 @@
-import type { CardLetter, Color, GameState, Player, Square, UnoCard, UnoCardType } from './types';
+import type { CardLetter, Color, GameState, Piece, PieceType, Player, Square, UnoCard, UnoCardType } from './types';
 import { COLORS, FILES, LETTER_INDEX } from './constants';
 
 let cardId = 0;
@@ -36,6 +36,8 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function topDiscard(state: GameState): UnoCard | null {
+  const pile = state.playPile ?? [];
+  if (pile.length > 0) return pile[pile.length - 1]!;
   return state.playedCard;
 }
 
@@ -49,6 +51,12 @@ export function matchesTop(card: UnoCard, top: UnoCard | null, wildColor: Color 
   if (card.type === top.type && card.type !== 'letter') return true;
   if (card.type === 'letter' && top.type === 'letter' && card.letter === top.letter) return true;
   return false;
+}
+
+/** Chess display rank 1–8 → internal board rank (rank 1 = white home = internal 7). */
+export function letterToInternalRank(letter: CardLetter): number {
+  const displayRank = LETTER_INDEX[letter] + 1;
+  return 8 - displayRank;
 }
 
 /** Letter unlocks matching rank & file (A→rank1/a-file … G→rank7/g-file). */
@@ -65,14 +73,44 @@ export function unlockedLines(card: UnoCard): { ranks: Set<number>; files: Set<n
   if (card.type === 'reverse' || card.type === 'skip') {
     return { ranks, files };
   }
-  const idx = LETTER_INDEX[card.letter ?? 'A'];
-  ranks.add(idx);
-  files.add(idx);
+  const letter = card.letter ?? 'A';
+  ranks.add(letterToInternalRank(letter));
+  files.add(LETTER_INDEX[letter]);
   return { ranks, files };
 }
 
+export function squareUnlocked(sq: Square, card: UnoCard): boolean {
+  if (card.type === 'wild') return true;
+  if (card.type === 'reverse' || card.type === 'skip') return false;
+  const { ranks, files } = unlockedLines(card);
+  return ranks.has(sq.rank) || files.has(sq.file);
+}
+
+/** Piece must sit on the card's unlocked rank or file. */
+export function squareUnlockedForPiece(sq: Square, card: UnoCard, _pieceType: PieceType): boolean {
+  if (card.type === 'wild') return true;
+  if (card.type === 'reverse' || card.type === 'skip') return false;
+  const { ranks, files } = unlockedLines(card);
+  return ranks.has(sq.rank) || files.has(sq.file);
+}
+
+/**
+ * Letter card rule: piece must start on the unlocked rank or file.
+ * After that, any normal legal chess move is allowed (check/pin still apply).
+ */
+export function moveRespectsCardUnlock(
+  from: Square,
+  _to: Square,
+  piece: Piece,
+  card: UnoCard,
+): boolean {
+  if (card.type === 'wild') return true;
+  if (card.type === 'reverse' || card.type === 'skip') return false;
+  return squareUnlockedForPiece(from, card, piece.type);
+}
+
 export function pieceOnUnlockedLines(
-  board: (import('./types').Piece | null)[][],
+  board: (Piece | null)[][],
   player: Player,
   card: UnoCard,
 ): boolean {
@@ -82,23 +120,17 @@ export function pieceOnUnlockedLines(
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
       const p = board[r][f];
-      if (p && p.player === player && (ranks.has(r) || files.has(f))) return true;
+      if (!p || p.player !== player) continue;
+      if (ranks.has(r) || files.has(f)) return true;
     }
   }
   return false;
 }
 
-function hasAnyPiece(board: (import('./types').Piece | null)[][], player: Player): boolean {
+function hasAnyPiece(board: (Piece | null)[][], player: Player): boolean {
   for (let r = 0; r < 8; r++)
     for (let f = 0; f < 8; f++) if (board[r][f]?.player === player) return true;
   return false;
-}
-
-export function squareUnlocked(sq: Square, card: UnoCard): boolean {
-  if (card.type === 'wild') return true;
-  if (card.type === 'reverse' || card.type === 'skip') return false;
-  const { ranks, files } = unlockedLines(card);
-  return ranks.has(sq.rank) || files.has(sq.file);
 }
 
 export function drawCards(deck: UnoCard[], count: number): { deck: UnoCard[]; drawn: UnoCard[] } {

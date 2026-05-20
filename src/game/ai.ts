@@ -2,6 +2,7 @@ import type { BotDifficulty, GameAction, GameState, Player, Square } from './typ
 import {
   abandonReverseBonus,
   applyAction,
+  cardCanBePlayed,
   endTurnWithoutMove,
   getLegalMoves,
   isReverseBonusPending,
@@ -10,7 +11,7 @@ import { getMovablePieceSquares } from './chess';
 import { pieceOnUnlockedLines } from './uno';
 
 function pickRandomCard(state: GameState): GameAction | null {
-  const hand = state.hands[state.currentPlayer];
+  const hand = state.hands[state.currentPlayer].filter((c) => cardCanBePlayed(state, c));
   if (hand.length === 0) return null;
   const card = hand[Math.floor(Math.random() * hand.length)]!;
   if (card.type === 'wild') {
@@ -25,7 +26,7 @@ function pickRandomCard(state: GameState): GameAction | null {
 }
 
 function pickCard(state: GameState, difficulty: BotDifficulty): GameAction | null {
-  const hand = state.hands[state.currentPlayer];
+  const hand = state.hands[state.currentPlayer].filter((c) => cardCanBePlayed(state, c));
   if (hand.length === 0) return null;
 
   const scored = hand.map((card) => {
@@ -37,6 +38,7 @@ function pickCard(state: GameState, difficulty: BotDifficulty): GameAction | nul
     if (card.type === 'reverse' && state.lastChessMove?.by === (state.currentPlayer === 'white' ? 'black' : 'white')) {
       score += 3;
     }
+    if (card.type === 'skip') score += difficulty === 'extreme' ? 2.5 : 1.5;
     return { card, score };
   });
 
@@ -99,18 +101,10 @@ export function runAiStep(state: GameState, aiPlayer: Player, difficulty: BotDif
   }
 
   if (state.phase === 'playCard') {
-    if (isReverseBonusPending(state) && state.pendingCardId) {
-      const card = state.hands[state.currentPlayer].find((c) => c.id === state.pendingCardId);
-      if (!card) return abandonReverseBonus(state);
-      if (card.type === 'wild') {
-        const colors: import('./types').Color[] = ['red', 'yellow', 'green', 'blue'];
-        return applyAction(state, {
-          type: 'playCard',
-          cardId: card.id,
-          wildColor: colors[Math.floor(Math.random() * colors.length)],
-        });
-      }
-      return applyAction(state, { type: 'playCard', cardId: card.id });
+    if (isReverseBonusPending(state)) {
+      const action = pickCard(state, difficulty) ?? pickRandomCard(state);
+      if (!action) return abandonReverseBonus(state);
+      return applyAction(state, action);
     }
     const action = pickRandomCard(state) ?? pickCard(state, difficulty);
     if (!action) return state;

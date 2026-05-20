@@ -37,7 +37,6 @@ export function GameScreen({
 }: GameScreenProps) {
   const {
     gameMode,
-    promotionPending,
     myColor,
     onlineError,
     eloMessage,
@@ -55,6 +54,8 @@ export function GameScreen({
     timers,
     canDiscardRedraw,
     discardAndRedraw,
+    premove,
+    premoveDraft,
   } = useGameStore();
 
   const profileUsername = useAuthStore((s) => s.profile?.username);
@@ -63,10 +64,6 @@ export function GameScreen({
   const vetoCards = UnoChess.vetoCards(rawState);
   const canControl =
     myColor !== null && rawState.currentPlayer === myColor && !aiThinking;
-  const reverseBonusCardId =
-    rawState.playedCard?.type === 'reverse' && rawState.phase === 'playCard'
-      ? rawState.pendingCardId
-      : null;
   const showRedrawBanner = canDiscardRedraw();
   const [showRules, setShowRules] = useState(false);
 
@@ -133,6 +130,8 @@ export function GameScreen({
                 orientation={boardOrientation}
                 canInteract={canControl && rawState.phase === 'chess'}
                 locked={aiThinking}
+                premove={premove}
+                premoveDraft={premoveDraft}
                 onMove={movePiece}
                 onSquareClick={tapSquare}
               />
@@ -140,8 +139,16 @@ export function GameScreen({
 
             <motion.div className="play-flank play-flank-right">
               <motion.div className="play-card-slot">
-                <span className="play-slot-label">Last played</span>
-                <PlaySlot card={rawState.playedCard} />
+                <span className="play-slot-label">Played</span>
+                <PlaySlot
+                  cards={
+                    rawState.playPile?.length
+                      ? rawState.playPile
+                      : rawState.playedCard
+                        ? [rawState.playedCard]
+                        : []
+                  }
+                />
               </motion.div>
             </motion.div>
           </div>
@@ -165,9 +172,6 @@ export function GameScreen({
             canControl={canControl && myColor === bottomPlayer}
             onPlay={showRedrawBanner ? discardAndRedraw : playCard}
             horizontal
-            mustPlayCardId={
-              !showRedrawBanner && myColor === bottomPlayer ? reverseBonusCardId : null
-            }
           />
 
           <motion.div className="play-hand-actions">
@@ -205,15 +209,30 @@ export function GameScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {promotionPending && canControl && (
+        {rawState.pendingPromotion && canControl && (
           <motion.div className="overlay" {...overlayAnim}>
-            <motion.div className="modal" {...modalAnim}>
-              <h2>Promote Pawn</h2>
-              <p>Choose a piece to promote to.</p>
+            <motion.div className="modal promo-modal" {...modalAnim}>
+              <h2>Promote pawn</h2>
+              <p>Your pawn reached the last rank. Choose a piece.</p>
               <motion.div className="promo-grid">
-                {(['queen', 'rook', 'bishop', 'knight'] as const).map((p) => (
-                  <button key={p} type="button" className="promo-btn" onClick={() => promote(p)}>
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                {(
+                  [
+                    { piece: 'queen', glyph: '♕', label: 'Queen' },
+                    { piece: 'rook', glyph: '♖', label: 'Rook' },
+                    { piece: 'bishop', glyph: '♗', label: 'Bishop' },
+                    { piece: 'knight', glyph: '♘', label: 'Knight' },
+                  ] as const
+                ).map(({ piece, glyph, label }) => (
+                  <button
+                    key={piece}
+                    type="button"
+                    className="promo-btn"
+                    onClick={() => promote(piece)}
+                  >
+                    <span className="promo-glyph" aria-hidden>
+                      {glyph}
+                    </span>
+                    <span className="promo-label">{label}</span>
                   </button>
                 ))}
               </motion.div>

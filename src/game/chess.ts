@@ -9,7 +9,7 @@ import type {
   UnoCard,
 } from './types';
 import { cloneBoard, squareKey } from './constants';
-import { squareUnlocked } from './uno';
+import { moveRespectsCardUnlock, squareUnlockedForPiece, unlockedLines } from './uno';
 
 export function getPiece(state: GameState, sq: Square): Piece | null {
   return state.board[sq.rank]?.[sq.file] ?? null;
@@ -124,13 +124,14 @@ function castlingMoves(
   const qs = player === 'white' ? rights.whiteQueenside : rights.blackQueenside;
   const kingDestK = { file: 6, rank: r };
   const kingDestQ = { file: 2, rank: r };
-  if (ks && !board[r][5] && !board[r][6] && canCastleThrough(board, r, kingSq.file, 6)) {
-    if (squareUnlocked(kingSq, card) && squareUnlocked(kingDestK, card))
-      out.push(kingDestK);
+  const { ranks, files } = unlockedLines(card);
+  const kingCanCastle = ranks.has(r) || files.has(kingSq.file);
+
+  if (ks && kingCanCastle && !board[r][5] && !board[r][6] && canCastleThrough(board, r, kingSq.file, 6)) {
+    out.push(kingDestK);
   }
-  if (qs && !board[r][1] && !board[r][2] && !board[r][3] && canCastleThrough(board, r, kingSq.file, 2)) {
-    if (squareUnlocked(kingSq, card) && squareUnlocked(kingDestQ, card))
-      out.push(kingDestQ);
+  if (qs && kingCanCastle && !board[r][1] && !board[r][2] && !board[r][3] && canCastleThrough(board, r, kingSq.file, 2)) {
+    out.push(kingDestQ);
   }
   return out;
 }
@@ -328,7 +329,7 @@ export function getLegalMovesForPiece(
   const opp: Player = player === 'white' ? 'black' : 'white';
   const piece = getPiece(state, from);
   if (!piece || piece.player !== player) return [];
-  if (!squareUnlocked(from, card) && card.type !== 'wild') return [];
+  if (!squareUnlockedForPiece(from, card, piece.type) && card.type !== 'wild') return [];
   const raw = getRawMoves(
     state.board,
     from,
@@ -340,7 +341,8 @@ export function getLegalMovesForPiece(
   return raw.filter((to) => {
     // Castling: both king and dest must be unlocked
     if (piece.type === 'king' && Math.abs(to.file - from.file) === 2) {
-      if (!(squareUnlocked(from, card) && squareUnlocked(to, card))) return false;
+      const { ranks, files } = unlockedLines(card);
+      if (!(ranks.has(from.rank) || files.has(from.file))) return false;
       // Can't castle through or into check
       const step = to.file > from.file ? 1 : -1;
       for (let f = from.file; f !== to.file + step; f += step) {
@@ -352,8 +354,7 @@ export function getLegalMovesForPiece(
       return !moveResultsInSelfCheck(state, from, to, player);
     }
 
-    // Normal UNO unlock filter (from OR to must be on unlocked line)
-    if (!(squareUnlocked(from, card) || squareUnlocked(to, card))) return false;
+    if (!moveRespectsCardUnlock(from, to, piece, card)) return false;
 
     // King can't walk into an attacked square
     if (piece.type === 'king' && isSquareAttackedBy(state.board, to, opp)) return false;

@@ -22,6 +22,8 @@ import {
   disconnectSocket,
   startMatchmakingWarmup,
   stopMatchmakingWarmup,
+  onQueueUpdate,
+  logServerMatchmakerVersion,
   type MatchPlayers,
 } from '../net/socket';
 import {
@@ -52,6 +54,53 @@ const BOT_REVERSE_CHAIN_MS = 400;
 const BOT_WILD_PICK_MS = 250;
 const TURN_SECONDS = 600; // 10 minutes per player
 const TOAST_MS = 3200;
+const QUEUE_POLL_MS = 2_000;
+let queuePollTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopQueuePoll(): void {
+  if (queuePollTimer) {
+    clearInterval(queuePollTimer);
+    queuePollTimer = null;
+  }
+}
+
+function startQueuePoll(
+  get: () => GameStore,
+  set: (partial: Partial<GameStore> | ((s: GameStore) => Partial<GameStore>)) => void,
+): void {
+  stopQueuePoll();
+  queuePollTimer = setInterval(() => {
+    const { screen, waitingForOpponent, gameMode, onlineLoading } = get();
+    if (screen !== 'waiting' || !waitingForOpponent || gameMode !== 'online' || onlineLoading) {
+      return;
+    }
+    void (async () => {
+      try {
+        dbg('queue poll — findMatch');
+        const res = await findMatch();
+        dbg('queue poll response', res);
+        if (res.roomId && res.state && res.color) {
+          stopQueuePoll();
+          stopMatchmakingWarmup();
+          set({
+            screen: 'game',
+            gameMode: 'online',
+            roomId: res.roomId,
+            myColor: res.color,
+            state: res.state,
+            playerNames: namesFromPlayers(res.players),
+            waitingForOpponent: false,
+            onlineLoading: false,
+          });
+          get().startClock();
+          pushRoute(get);
+        }
+      } catch (e) {
+        dbg('queue poll error', e);
+      }
+    })();
+  }, QUEUE_POLL_MS);
+}
 
 export type ToastKind = 'info' | 'success' | 'warn' | 'error';
 
@@ -203,6 +252,7 @@ function bindOnlineHandlers(
   onMatched((data) => {
     dbg('onMatched', { roomId: data.roomId, color: data.color });
     unlockChessAudio();
+    stopQueuePoll();
     stopMatchmakingWarmup();
     set({
       state: data.state,
@@ -221,6 +271,12 @@ function bindOnlineHandlers(
   onOpponentReconnected(() => {
     set({ onlineError: null });
     get().pushToast('Opponent reconnected.', 'success');
+  });
+  onQueueUpdate(({ size }) => {
+    dbg('queueUpdate', size);
+    if (get().waitingForOpponent) {
+      get().pushToast(`In queue (${size} waiting)…`, 'info');
+    }
   });
   onEloUpdate((payload) => {
     const { myColor } = get();
@@ -496,6 +552,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().cancelBotSchedule();
     get().stopClock();
     leaveQueue();
+    stopQueuePoll();
     stopMatchmakingWarmup();
     clearAllListeners();
     disconnectSocket();
@@ -610,6 +667,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     dbg('startRandomMatch begin');
     set({ onlineLoading: true, onlineError: null, eloMessage: null });
     startMatchmakingWarmup();
+    void logServerMatchmakerVersion();
     try {
       await connectSocket();
       dbg('startRandomMatch — socket connected, binding handlers');
@@ -640,6 +698,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
           onlineError: null,
         });
         pushRoute(get);
+        get().pushToast(
+          res.queueSize && res.queueSize > 1
+            ? 'Matching you now…'
+            : 'Waiting for another player…',
+          'info',
+        );
+        startQueuePoll(get, set);
       } else {
         stopMatchmakingWarmup();
         set({ onlineLoading: false, onlineError: res.error ?? 'Match failed' });

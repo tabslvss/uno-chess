@@ -8,6 +8,8 @@ import { verifyAccessToken, type SocketUser } from './auth.ts';
 import { applyMatchElo } from './elo.ts';
 
 const PORT = Number(process.env.PORT) || 3001;
+/** Bump when matchmaking logic changes — exposed on /health so clients can verify deploy. */
+const MATCHMAKER_VERSION = 3;
 
 interface Room {
   id: string;
@@ -191,7 +193,39 @@ function createRankedRoom(
   };
 }
 
+/** Pair any two queue entries with different user IDs (ignores ELO). */
+function pairAnyTwoInQueue(io: Server): boolean {
+  for (let i = 0; i < queue.length; i++) {
+    for (let j = i + 1; j < queue.length; j++) {
+      const a = queue[i]!;
+      const b = queue[j]!;
+      if (a.userId === b.userId) continue;
+      const ua = socketUsers.get(a.socketId)?.username;
+      const ub = socketUsers.get(b.socketId)?.username;
+      log('pairAnyTwoInQueue', { a: ua, b: ub, queueSize: queue.length });
+      if (createRankedRoom(a, b, io)) return true;
+    }
+  }
+  return false;
+}
+
+function drainMatchQueue(io: Server): void {
+  while (pairAnyTwoInQueue(io)) {
+    log('drainMatchQueue — paired a match, draining again');
+  }
+}
+
+function roomForSocket(socketId: string): Room | null {
+  for (const room of rooms.values()) {
+    if (room.white === socketId || room.black === socketId) return room;
+  }
+  return null;
+}
+
 function processMatchQueue(io: Server): void {
+  if (queue.length < 2) return;
+
+  drainMatchQueue(io);
   if (queue.length < 2) return;
 
   const now = Date.now();
@@ -205,9 +239,11 @@ function processMatchQueue(io: Server): void {
 
     const a = socketUsers.get(entry.socketId)?.username;
     const b = socketUsers.get(partner.socketId)?.username;
-    log('processMatchQueue — pairing', { a, b, waitMs, maxGap });
-    const result = createRankedRoom(entry, partner, io);
-    if (result) return processMatchQueue(io);
+    log('processMatchQueue — ELO pairing', { a, b, waitMs, maxGap });
+    if (createRankedRoom(entry, partner, io)) {
+      drainMatchQueue(io);
+      return;
+    }
     return;
   }
 }
@@ -256,7 +292,14 @@ const io = new Server(httpServer, {
   cors: { origin: corsOrigin, credentials: true },
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) =>
+  res.json({
+    ok: true,
+    matchmaker: MATCHMAKER_VERSION,
+    queueSize: queue.length,
+    rooms: rooms.size,
+  }),
+);
 
 io.use(async (socket, next) => {
   const token = socket.handshake.auth?.token as string | undefined;
@@ -361,34 +404,45 @@ io.on('connection', (socket) => {
     log('findMatch — queued', {
       sid: socket.id,
       user: user.username,
+      userId: user.id,
       elo: user.elo,
       queueSize: queue.length,
+      matchmaker: MATCHMAKER_VERSION,
     });
 
-    const partner = findRankedPartner(entry, 400);
-    if (partner) {
-      log('findMatch — instant partner', {
-        a: user.username,
-        b: socketUsers.get(partner.socketId)?.username,
+    drainMatchQueue(io);
+
+    const room = roomForSocket(socket.id);
+    if (room) {
+      const color: Player = room.white === socket.id ? 'white' : 'black';
+      const players = roomPlayersPayload(room);
+      log('findMatch — already in room after drain', { roomId: room.id, color });
+      cb({
+        ok: true,
+        roomId: room.id,
+        color,
+        state: room.state,
+        players,
       });
-      const created = createRankedRoom(entry, partner, io);
-      if (created) {
-        const color = created.colorBySocket[entry.socketId];
-        if (color) {
-          cb({
-            ok: true,
-            roomId: created.roomId,
-            color,
-            state: created.state,
-            players: created.players,
-          });
-          return;
-        }
-      }
+      return;
     }
 
-    processMatchQueue(io);
-    cb({ ok: true, queued: true });
+    const othersDifferentUser = queue.filter((e) => e.userId !== user.id);
+    if (queue.length >= 2 && othersDifferentUser.length === 0) {
+      removeFromQueue(socket.id);
+      cb({
+        error:
+          'Ranked needs two different logins. Use another account in the second browser (same user cannot match themselves).',
+      });
+      return;
+    }
+
+    for (const q of queue) {
+      const s = io.sockets.sockets.get(q.socketId);
+      s?.emit('queueUpdate', { size: queue.length });
+    }
+
+    cb({ ok: true, queued: true, queueSize: queue.length });
   });
 
   socket.on('action', async (payload: { roomId: string; action: GameAction }) => {
@@ -442,7 +496,12 @@ io.on('connection', (socket) => {
   });
 });
 
-setInterval(() => processMatchQueue(io), 2_000);
+setInterval(() => {
+  if (queue.length >= 2) {
+    log('matchmaker tick', { queueSize: queue.length });
+    processMatchQueue(io);
+  }
+}, 1_000);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`UNO Chess server on port ${PORT}`);

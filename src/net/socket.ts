@@ -281,15 +281,42 @@ export interface FindMatchResult {
   state?: GameState;
   players?: MatchPlayers;
   queued?: boolean;
+  queueSize?: number;
   error?: string;
 }
 
 export async function findMatch(): Promise<FindMatchResult> {
-  const res = await emitWithAck<FindMatchResult>('findMatch');
-  if (res?.players == null && res?.roomId) {
-    res.players = { white: { username: 'Player' }, black: { username: 'Opponent' } };
+  const res = await emitWithAck<FindMatchResult | { error: string }>('findMatch');
+  if (res && 'error' in res && res.error) throw new Error(res.error);
+  const out = res as FindMatchResult;
+  if (out?.players == null && out?.roomId) {
+    out.players = { white: { username: 'Player' }, black: { username: 'Opponent' } };
   }
-  return res;
+  return out;
+}
+
+export function onQueueUpdate(cb: (data: { size: number }) => void): () => void {
+  const s = getSocket();
+  const wrapped = (data: { size: number }) => {
+    log('event queueUpdate', data);
+    cb(data);
+  };
+  s.on('queueUpdate', wrapped);
+  return () => s.off('queueUpdate', wrapped);
+}
+
+/** Log matchmaker version from API (confirms Render deploy). */
+export async function logServerMatchmakerVersion(): Promise<void> {
+  try {
+    const res = await fetch(healthUrl());
+    const data = (await res.json()) as { matchmaker?: number; queueSize?: number };
+    log('API health', data);
+    if (data.matchmaker == null || data.matchmaker < 3) {
+      log('WARNING: API matchmaker is old — redeploy Render (unochess-api) from latest main');
+    }
+  } catch (e) {
+    log('API health check failed', e);
+  }
 }
 
 export function leaveQueue(): void {
@@ -392,6 +419,7 @@ export function clearAllListeners(): void {
   s.off('matched');
   s.off('opponentLeft');
   s.off('opponentReconnected');
+  s.off('queueUpdate');
   s.off('eloUpdate');
 }
 

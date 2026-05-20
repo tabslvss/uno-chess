@@ -159,11 +159,15 @@ function feedbackForTransition(prev: GameState, next: GameState): string | null 
   return null;
 }
 
-function namesFromPlayers(players: MatchPlayers): Record<Player, string> {
-  return {
-    white: players.white.username,
-    black: players.black?.username ?? 'Opponent',
-  };
+function namesFromPlayers(players: MatchPlayers | undefined | null): Record<Player, string> {
+  const w = players?.white?.username ?? 'Player';
+  const b = players?.black?.username ?? 'Opponent';
+  return { white: w, black: b };
+}
+
+const STORE_DEBUG = true;
+function dbg(...args: unknown[]): void {
+  if (STORE_DEBUG) console.log('[store]', ...args);
 }
 
 function applyGameState(
@@ -197,6 +201,7 @@ function bindOnlineHandlers(
     else if (!get().timerInterval) get().startClock();
   });
   onMatched((data) => {
+    dbg('onMatched', { roomId: data.roomId, color: data.color });
     unlockChessAudio();
     stopMatchmakingWarmup();
     set({
@@ -547,11 +552,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   startCreateGame: async () => {
+    dbg('startCreateGame begin');
     set({ onlineLoading: true, onlineError: null, eloMessage: null });
     try {
       await connectSocket();
+      dbg('startCreateGame — socket connected, sending createRoom');
       bindOnlineHandlers(set, get);
       const { roomId, color, state } = await createRoom();
+      dbg('createRoom result', { roomId, color });
       set({
         screen: 'waiting',
         gameMode: 'online',
@@ -573,11 +581,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ onlineError: 'Enter a room code first.' });
       return;
     }
+    dbg('startJoinGame', trimmed);
     set({ onlineLoading: true, onlineError: null, eloMessage: null });
     try {
       await connectSocket();
+      dbg('startJoinGame — socket connected, sending joinRoom');
       bindOnlineHandlers(set, get);
       const { roomId, color, state, players } = await joinRoom(trimmed);
+      dbg('joinRoom result', { roomId, color, hasPlayers: !!players });
       set({
         screen: 'game',
         gameMode: 'online',
@@ -596,12 +607,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   startRandomMatch: async () => {
+    dbg('startRandomMatch begin');
     set({ onlineLoading: true, onlineError: null, eloMessage: null });
     startMatchmakingWarmup();
     try {
       await connectSocket();
+      dbg('startRandomMatch — socket connected, binding handlers');
       bindOnlineHandlers(set, get);
       const res = await findMatch();
+      dbg('findMatch response', res);
       if (res.state && res.roomId && res.color && res.players) {
         stopMatchmakingWarmup();
         set({

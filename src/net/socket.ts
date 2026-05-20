@@ -7,6 +7,11 @@ const ACK_TIMEOUT_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 20_000;
 const CONNECT_RETRIES = 5;
 const RETRY_DELAY_MS = 500;
+const DEBUG = true;
+
+function log(...args: unknown[]): void {
+  if (DEBUG) console.log('[net]', ...args);
+}
 
 let socket: Socket | null = null;
 let warmPromise: Promise<boolean> | null = null;
@@ -103,6 +108,7 @@ function connectOnce(token: string): Promise<void> {
       if (settled) return;
       settled = true;
       preferWebSocketOnly = true;
+      log('socket connected', { id: s.id, transport: s.io.engine.transport.name });
       cleanup();
       resolve();
     };
@@ -110,6 +116,7 @@ function connectOnce(token: string): Promise<void> {
     const onError = (err: Error) => {
       if (settled) return;
       settled = true;
+      log('socket connect_error', err?.message);
       cleanup();
       s.disconnect();
       reject(err);
@@ -200,14 +207,17 @@ function emitWithAck<T>(event: string, ...args: unknown[]): Promise<T> {
   return new Promise((resolve, reject) => {
     const s = getSocket();
     if (!s.connected) {
+      log(`emit ${event} blocked — not connected`);
       reject(new Error('Not connected to the game server.'));
       return;
     }
+    log(`emit ${event}`, args);
 
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
+      log(`emit ${event} timed out`);
       reject(new Error('Server didn’t respond. Try again.'));
     }, ACK_TIMEOUT_MS);
 
@@ -215,6 +225,7 @@ function emitWithAck<T>(event: string, ...args: unknown[]): Promise<T> {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      log(`ack ${event}`, res);
       resolve(res);
     });
   });
@@ -241,7 +252,14 @@ export async function joinRoom(
   const res = await emitWithAck<MatchedPayload | { error: string }>('joinRoom', code);
   if ('error' in res) throw new Error(res.error);
   if (!res?.roomId) throw new Error('Failed to join room.');
-  return res;
+  if (!('players' in res) || !res.players) {
+    log('joinRoom ack missing players — using fallback (server likely old build)');
+    (res as MatchedPayload).players = {
+      white: { username: 'Player' },
+      black: { username: 'You' },
+    };
+  }
+  return res as MatchedPayload;
 }
 
 export interface MatchPlayers {
@@ -267,7 +285,11 @@ export interface FindMatchResult {
 }
 
 export async function findMatch(): Promise<FindMatchResult> {
-  return emitWithAck<FindMatchResult>('findMatch');
+  const res = await emitWithAck<FindMatchResult>('findMatch');
+  if (res?.players == null && res?.roomId) {
+    res.players = { white: { username: 'Player' }, black: { username: 'Opponent' } };
+  }
+  return res;
 }
 
 export function leaveQueue(): void {
@@ -306,33 +328,52 @@ export interface EloUpdatePayload {
 
 export function onState(cb: (state: GameState) => void): () => void {
   const s = getSocket();
-  s.on('state', cb);
+  const wrapped = (state: GameState) => {
+    log('event state', { phase: state.phase, turn: state.currentPlayer });
+    cb(state);
+  };
+  s.on('state', wrapped);
   return () => {
-    s.off('state', cb);
+    s.off('state', wrapped);
   };
 }
 
 export function onMatched(cb: (data: MatchedPayload) => void): () => void {
   const s = getSocket();
-  s.on('matched', cb);
+  const wrapped = (data: MatchedPayload) => {
+    log('event matched', data);
+    if (!data.players) {
+      data.players = { white: { username: 'Player' }, black: { username: 'Opponent' } };
+    }
+    cb(data);
+  };
+  s.on('matched', wrapped);
   return () => {
-    s.off('matched', cb);
+    s.off('matched', wrapped);
   };
 }
 
 export function onOpponentLeft(cb: () => void): () => void {
   const s = getSocket();
-  s.on('opponentLeft', cb);
+  const wrapped = () => {
+    log('event opponentLeft');
+    cb();
+  };
+  s.on('opponentLeft', wrapped);
   return () => {
-    s.off('opponentLeft', cb);
+    s.off('opponentLeft', wrapped);
   };
 }
 
 export function onOpponentReconnected(cb: () => void): () => void {
   const s = getSocket();
-  s.on('opponentReconnected', cb);
+  const wrapped = () => {
+    log('event opponentReconnected');
+    cb();
+  };
+  s.on('opponentReconnected', wrapped);
   return () => {
-    s.off('opponentReconnected', cb);
+    s.off('opponentReconnected', wrapped);
   };
 }
 

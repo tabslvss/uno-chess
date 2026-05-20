@@ -31,6 +31,11 @@ const rooms = new Map<string, Room>();
 const queue: QueueEntry[] = [];
 const socketUsers = new Map<string, SocketUser>();
 
+const DEBUG = (process.env.DEBUG ?? 'true').toLowerCase() !== 'false';
+function log(...args: unknown[]): void {
+  if (DEBUG) console.log('[uno-chess]', ...args);
+}
+
 function genCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -198,6 +203,9 @@ function processMatchQueue(io: Server): void {
     const partner = findRankedPartner(entry, maxGap);
     if (!partner) continue;
 
+    const a = socketUsers.get(entry.socketId)?.username;
+    const b = socketUsers.get(partner.socketId)?.username;
+    log('processMatchQueue — pairing', { a, b, waitMs, maxGap });
     const result = createRankedRoom(entry, partner, io);
     if (result) return processMatchQueue(io);
     return;
@@ -267,6 +275,7 @@ io.use(async (socket, next) => {
 
 io.on('connection', (socket) => {
   const user = socketUsers.get(socket.id)!;
+  log('connect', { sid: socket.id, user: user.username, elo: user.elo });
   socket.emit('authenticated', { username: user.username, elo: user.elo });
 
   socket.on(
@@ -286,6 +295,7 @@ io.on('connection', (socket) => {
       };
       rooms.set(roomId, room);
       socket.join(roomId);
+      log('createRoom', { sid: socket.id, user: user.username, roomId });
       cb({ roomId, color: 'white', state });
     },
   );
@@ -300,8 +310,11 @@ io.on('connection', (socket) => {
           | { error: string },
       ) => void,
     ) => {
-      const room = rooms.get(String(roomId).toUpperCase());
+      const code = String(roomId).toUpperCase();
+      log('joinRoom request', { sid: socket.id, user: user.username, code });
+      const room = rooms.get(code);
       if (!room) {
+        log('joinRoom — room not found', { code });
         cb({ error: 'Room not found' });
         return;
       }
@@ -325,6 +338,7 @@ io.on('connection', (socket) => {
       const { color, state } = assignToRoom(socket, room, io);
       const players = roomPlayersPayload(room);
       const hostSocket = room.white ? io.sockets.sockets.get(room.white) : undefined;
+      log('joinRoom — paired', { code, joiner: user.username, color, players });
       hostSocket?.emit('matched', { roomId: room.id, color: 'white', state, players });
       cb({ roomId: room.id, color, state, players });
     },
@@ -344,9 +358,19 @@ io.on('connection', (socket) => {
       queuedAt: Date.now(),
     };
     queue.push(entry);
+    log('findMatch — queued', {
+      sid: socket.id,
+      user: user.username,
+      elo: user.elo,
+      queueSize: queue.length,
+    });
 
     const partner = findRankedPartner(entry, 400);
     if (partner) {
+      log('findMatch — instant partner', {
+        a: user.username,
+        b: socketUsers.get(partner.socketId)?.username,
+      });
       const created = createRankedRoom(entry, partner, io);
       if (created) {
         const color = created.colorBySocket[entry.socketId];
@@ -364,12 +388,6 @@ io.on('connection', (socket) => {
     }
 
     processMatchQueue(io);
-    const stillQueued = queue.some((e) => e.socketId === socket.id);
-    if (stillQueued) {
-      cb({ ok: true, queued: true });
-      return;
-    }
-
     cb({ ok: true, queued: true });
   });
 
@@ -409,6 +427,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    log('disconnect', { sid: socket.id, user: user?.username });
     socketUsers.delete(socket.id);
     removeFromQueue(socket.id);
     for (const [id, room] of rooms) {

@@ -27,6 +27,7 @@ function healthUrl(): string {
 }
 
 let socket: PartySocket | null = null;
+let socketAuthed = false;
 let warmPromise: Promise<boolean> | null = null;
 let preconnectPromise: Promise<void> | null = null;
 let matchmakingWarmInterval: ReturnType<typeof setInterval> | null = null;
@@ -118,41 +119,61 @@ function getSocket(): PartySocket {
       host,
       party: PARTY_NAME,
       room: PARTY_ROOM,
-      query: async () => ({ token: await accessToken() }),
     });
     socket.addEventListener('message', dispatchMessage);
-    socket.addEventListener('open', () => log('party connected', socket?.id));
-    socket.addEventListener('close', () => log('party disconnected'));
+    socket.addEventListener('open', () => {
+      socketAuthed = false;
+      log('party connected', socket?.id);
+    });
+    socket.addEventListener('close', () => {
+      socketAuthed = false;
+      log('party disconnected');
+    });
     socket.addEventListener('error', () => log('party error'));
   }
   return socket;
 }
 
+async function authenticateAfterOpen(token: string): Promise<void> {
+  const res = await emitRpc<{ ok: boolean }>('authenticate', token);
+  if (!res?.ok) throw new Error('Invalid session — log in again.');
+  socketAuthed = true;
+}
+
 function connectOnce(token: string): Promise<void> {
   const s = getSocket();
-  s.updateProperties({ query: { token } });
 
-  if (s.readyState === WebSocket.OPEN) return Promise.resolve();
+  if (s.readyState === WebSocket.OPEN && socketAuthed) return Promise.resolve();
+  if (s.readyState === WebSocket.OPEN) return authenticateAfterOpen(token);
 
   return new Promise((resolve, reject) => {
     let settled = false;
-    const onOpen = () => {
+    const finish = (fn: () => void) => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve();
+      fn();
+    };
+    const onOpen = () => {
+      void authenticateAfterOpen(token)
+        .then(() => finish(resolve))
+        .catch((err) =>
+          finish(() =>
+            reject(err instanceof Error ? err : new Error('Authentication failed')),
+          ),
+        );
     };
     const onError = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(new Error('Connection failed'));
+      finish(() =>
+        reject(
+          new Error(
+            'Could not reach the game server. Hard refresh; if it persists, wait a minute for SSL provisioning.',
+          ),
+        ),
+      );
     };
     const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(new Error('Connection timed out'));
+      finish(() => reject(new Error('Connection timed out')));
     }, CONNECT_TIMEOUT_MS);
 
     const cleanup = () => {
@@ -226,7 +247,7 @@ function emitRpc<T>(method: string, ...args: unknown[]): Promise<T> {
       reject,
       timer,
     });
-    log('rpc', method, args);
+    log('rpc', method, method === 'authenticate' ? ['<token>'] : args);
     s.send(JSON.stringify({ type: 'rpc', id, method, args }));
   });
 }
@@ -383,5 +404,6 @@ export function disconnectSocket(): void {
   clearAllListeners();
   socket.close();
   socket = null;
+  socketAuthed = false;
   preconnectPromise = null;
 }

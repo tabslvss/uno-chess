@@ -93,18 +93,10 @@ export default class UnoChessParty implements Party.Server {
     return new Response('UnoChess PartyKit', { status: 200 });
   }
 
-  async onConnect(conn: Party.Connection, ctx: Party.ConnectionContext): Promise<void> {
+  async onConnect(conn: Party.Connection, _ctx: Party.ConnectionContext): Promise<void> {
     installEnvBridge(this.room.env as Record<string, unknown>);
-    const url = new URL(ctx.request.url);
-    const token = url.searchParams.get('token') ?? '';
-    const user = await verifyAccessToken(token);
-    if (!user) {
-      conn.close(4001, 'Login required for online play');
-      return;
-    }
-    this.socketUsers.set(conn.id, user);
-    log('connect', { id: conn.id, user: user.username });
-    this.sendEvent(conn, 'authenticated', { username: user.username, elo: user.elo });
+    log('connect', { id: conn.id });
+    // Auth happens via `authenticate` RPC — do not put JWT in the WebSocket URL (too long for some TLS stacks).
   }
 
   async onMessage(raw: string | ArrayBuffer | ArrayBufferView, sender: Party.Connection): Promise<void> {
@@ -117,13 +109,28 @@ export default class UnoChessParty implements Party.Server {
     }
     if (msg.type !== 'rpc') return;
 
-    const user = this.socketUsers.get(sender.id);
-    if (!user) {
-      this.sendRpc(sender, msg.id, undefined, 'Not authenticated');
-      return;
-    }
-
     try {
+      if (msg.method === 'authenticate') {
+        const token = String(msg.args?.[0] ?? '');
+        const user = await verifyAccessToken(token);
+        if (!user) {
+          this.sendRpc(sender, msg.id, undefined, 'Invalid session — log in again.');
+          sender.close(4001, 'Unauthorized');
+          return;
+        }
+        this.socketUsers.set(sender.id, user);
+        log('authenticated', { id: sender.id, user: user.username });
+        this.sendEvent(sender, 'authenticated', { username: user.username, elo: user.elo });
+        this.sendRpc(sender, msg.id, { ok: true });
+        return;
+      }
+
+      const user = this.socketUsers.get(sender.id);
+      if (!user) {
+        this.sendRpc(sender, msg.id, undefined, 'Not authenticated');
+        return;
+      }
+
       const result = await this.handleRpc(sender, user, msg.method, msg.args ?? []);
       this.sendRpc(sender, msg.id, result);
     } catch (e) {

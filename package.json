@@ -14,7 +14,8 @@
     "supabase:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-supabase.ps1",
     "supabase:link": "supabase link --project-ref ogarlhehzrsthayldrjt",
     "supabase:push": "supabase db push --yes",
-    "supabase:sql": "supabase db query --linked --yes"
+    "supabase:sql": "supabase db query --linked --yes",
+    "render:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-render.ps1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

@@ -1,0 +1,44 @@
+{
+  "name": "uno-chess",
+  "description": "UNO Chess — hybrid chess and UNO card game",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n web,api -c blue,magenta \"vite\" \"tsx server/index.ts\"",
+    "dev:web": "vite",
+    "server": "tsx server/index.ts",
+    "build": "tsc && vite build",
+    "start:server": "tsx server/index.ts",
+    "preview": "vite preview",
+    "supabase:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-supabase.ps1",
+    "supabase:link": "supabase link --project-ref ogarlhehzrsthayldrjt",
+    "supabase:push": "supabase db push --yes",
+    "supabase:sql": "supabase db query --linked --yes"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "supabase": "^2.100.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.0",
+    "chess.js": "^1.4.0",
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "framer-motion": "^12.39.0",
+    "jose": "^6.2.3",
+    "react": "^19.2.6",
+    "react-chessboard": "^5.10.0",
+    "react-dom": "^19.2.6",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "tsx": "^4.22.3",
+    "zustand": "^5.0.13"
+  }
+}

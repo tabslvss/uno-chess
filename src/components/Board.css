@@ -1,0 +1,22 @@
+.board-wrap {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.board-wrap.board-locked {
+  pointer-events: none;
+  opacity: 0.88;
+}
+
+.chessboard-api {
+  width: min(100%, 560px);
+  margin: 0 auto;
+}
+
+.chessboard-api > div {
+  width: 100% !important;
+}

@@ -12,7 +12,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "isolatedModules": true,
-    "types": []
+    "types": ["node"]
   },
   "include": ["party", "vite.config.ts", "vitest.config.ts", "playwright.config.ts", "e2e"]
 }

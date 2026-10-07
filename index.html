@@ -2,15 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#f6efe3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1d1713" media="(prefers-color-scheme: dark)" />
+    <title>UNO Chess — play a card, move a piece</title>
+    <meta name="description" content="UNO Chess: the cozy mash-up of UNO and chess. Play a card to unlock a rank or file, move a piece, capture the king. Play bots, friends, or ranked online." />
+    <meta property="og:title" content="UNO Chess" />
+    <meta property="og:description" content="Play a card. Move a piece. Capture the king." />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@600;700;800;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,500..800,100;1,9..144,500..800,100&family=Nunito:wght@500;600;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap"
       rel="stylesheet"
     />
-    <title>UNO Chess</title>
+    <script>
+      // Apply the saved theme before first paint (no flash).
+      try {
+        var t = JSON.parse(localStorage.getItem('unochess-settings') || '{}').state?.theme || 'system';
+        var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

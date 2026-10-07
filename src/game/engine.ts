@@ -198,8 +198,8 @@ function endGame(state: GameState, winner: Side | null, reason: ResultReason, te
   );
 }
 
-export function resultText(result: GameResult): string {
-  const name = (s: Side) => (s === 'w' ? 'White' : 'Black');
+export function resultText(result: GameResult, names?: Record<Side, string>): string {
+  const name = (s: Side) => names?.[s] ?? (s === 'w' ? 'White' : 'Black');
   if (!result.winner) {
     switch (result.reason) {
       case 'sixNoMove':

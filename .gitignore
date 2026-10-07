@@ -28,3 +28,7 @@ dist-ssr
 *.sw?
 
 .vercel
+test-results/
+playwright-report/
+.partykit/
+*.tsbuildinfo

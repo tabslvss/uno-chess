@@ -1,11 +1,12 @@
 /// <reference types="vite/client" />
 
-declare module '*.mp3' {
-  const src: string;
-  export default src;
+interface ImportMetaEnv {
+  readonly VITE_SUPABASE_URL?: string;
+  readonly VITE_SUPABASE_ANON_KEY?: string;
+  /** PartyKit host, e.g. unochess.<user>.partykit.dev (no protocol). Empty = same origin (dev proxy). */
+  readonly VITE_PARTYKIT_HOST?: string;
 }
 
-declare module '*.mp3?url' {
-  const src: string;
-  export default src;
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
 }

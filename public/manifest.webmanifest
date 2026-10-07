@@ -1,0 +1,13 @@
+{
+  "name": "UNO Chess",
+  "short_name": "UNO Chess",
+  "description": "Play a card. Move a piece. Capture the king.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6efe3",
+  "theme_color": "#d9734e",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

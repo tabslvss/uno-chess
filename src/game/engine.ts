@@ -1,699 +1,483 @@
-import type { Color, GameAction, GameEvent, GameState, PieceType, Player, Square, UnoCard } from './types';
-import { createInitialBoard, HAND_SIZE, INITIAL_CASTLING } from './constants';
 import {
-  applyChessMove,
-  getLegalMovesForPiece,
-  getMovablePieceSquares,
-  isChessMoveLegal,
-  isInCheck,
-  isPromotionPiece,
-  restoreFromRecord,
-} from './chess';
-import {
-  createDeck,
-  drawCards,
-  pieceOnUnlockedLines,
-  cardLabel,
-  letterLinesDescription,
-} from './uno';
+  applyMove,
+  findKing,
+  INITIAL_CASTLING,
+  initialBoard,
+  isLoneKing,
+  needsPromotion,
+  other,
+  pieceTargets,
+  sideOf,
+  sqName,
+  toSan,
+  typeOf,
+} from './board';
+import { cardMatches, cardName, cardUnlocksSquare, createDeck, HAND_SIZE, NO_MOVE_DRAW_LIMIT } from './cards';
+import { nextRandom, randomSeed, shuffle } from './rng';
+import type {
+  ActionResult,
+  Card,
+  Color,
+  GameAction,
+  GameResult,
+  GameState,
+  HistoryEntry,
+  Move,
+  MoveRecord,
+  ResultReason,
+  Side,
+  UnoStatus,
+} from './types';
 
-function msg(state: GameState, text: string): GameState {
-  return { ...state, message: text };
+export interface NewGameOptions {
+  seed?: number;
 }
 
-/** Record a card on the table pile (persists across turns). */
-function commitPlayedCard(state: GameState, card: UnoCard): GameState {
-  const pile = state.playPile ?? [];
-  return {
-    ...state,
-    playedCard: card,
-    playPile: [...pile, card],
-  };
-}
-
-function opponent(p: Player): Player {
-  return p === 'white' ? 'black' : 'white';
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+/** Shuffle, deal 7 each, and flip a starter card (its action is ignored). */
+export function createGame(opts: NewGameOptions = {}): GameState {
+  const [deck0, rng0] = shuffle(createDeck(), (opts.seed ?? randomSeed()) >>> 0);
+  const deck = deck0.slice();
+  const hands: Record<Side, Card[]> = { w: [], b: [] };
+  for (let i = 0; i < HAND_SIZE; i++) {
+    hands.w.push(deck.pop()!);
+    hands.b.push(deck.pop()!);
   }
-  return a;
-}
-
-function deal(drawPile: UnoCard[], count: number): { pile: UnoCard[]; cards: UnoCard[] } {
-  const pile = [...drawPile];
-  const { deck, drawn } = drawCards(pile, count);
-  return { pile: deck, cards: drawn };
-}
-
-/** Pile is infinite — if empty, shuffle a fresh deck in. */
-function ensurePile(pile: UnoCard[]): UnoCard[] {
-  if (pile.length > 0) return pile;
-  return shuffle(createDeck());
-}
-
-/** True when a card can legally be played right now (same rules as the UI). */
-function cardIsPlayable(state: GameState, card: UnoCard): boolean {
-  return cardCanBePlayed(state, card);
-}
-
-/**
- * Draw from pile, preferring a playable card.
- * Searches pile for a playable card; falls back to top of pile if none found.
- * Pile is automatically refilled if empty.
- */
-function drawPlayableCard(state: GameState, pile: UnoCard[]): { pile: UnoCard[]; card: UnoCard } {
-  const mutable = [...ensurePile(pile)];
-  // Try to find a playable card anywhere in the pile
-  for (let i = mutable.length - 1; i >= 0; i--) {
-    if (cardIsPlayable(state, mutable[i]!)) {
-      const card = mutable[i]!;
-      mutable.splice(i, 1);
-      return { pile: mutable, card };
-    }
-  }
-  // No playable card found — pop top
-  const card = mutable.pop()!;
-  return { pile: mutable, card };
-}
-
-function drawToPlayer(state: GameState, player: Player, n: number): { state: GameState; drawn: UnoCard[] } {
-  let pile = [...state.drawPile];
-  const drawn: UnoCard[] = [];
-  for (let i = 0; i < n; i++) {
-    // Infinite pile: refill if empty
-    const result = drawPlayableCard(state, pile);
-    pile = result.pile;
-    drawn.push(result.card);
-  }
-  const last = drawn[drawn.length - 1];
-  const event: GameEvent =
-    last ? { type: 'draw', player, cardId: last.id } : null;
+  const starter = deck.pop()!;
   return {
-    state: {
-      ...state,
-      drawPile: pile,
-      hands: { ...state.hands, [player]: [...state.hands[player], ...drawn] },
-      lastEvent: event,
-    },
-    drawn,
-  };
-}
-
-/** Check if ALL cards in a player's hand are unplayable letter cards. */
-export function allCardsUnplayable(state: GameState, player: Player): boolean {
-  const hand = state.hands[player];
-  if (hand.length === 0) return false;
-  return hand.every((c) => !cardIsPlayable(state, c));
-}
-
-/** Discard a card from hand and replace it with a playable card from the pile. */
-export function discardForRedraw(state: GameState, cardId: string): GameState {
-  const player = state.currentPlayer;
-  const hand = state.hands[player];
-  const card = hand.find((c) => c.id === cardId);
-  if (!card || !allCardsUnplayable(state, player)) return state;
-
-  const newHand = hand.filter((c) => c.id !== cardId);
-  // Put the discarded card at bottom of pile, draw a playable replacement
-  const pileWithDiscard = [card, ...state.drawPile];
-  const { pile: newPile, card: drawn } = drawPlayableCard(state, pileWithDiscard);
-
-  return msg(
-    {
-      ...state,
-      drawPile: newPile,
-      hands: { ...state.hands, [player]: [...newHand, drawn] },
-      lastEvent: { type: 'draw', player, cardId: drawn.id },
-    },
-    `Discarded — drew ${drawn.type === 'letter' ? drawn.letter : drawn.type}.`,
-  );
-}
-
-/** New game: 7 random cards each from the Uno Chess pile. White moves first. */
-export function createGame(): GameState {
-  let pile = shuffle(createDeck());
-  const w = deal(pile, HAND_SIZE);
-  pile = w.pile;
-  const b = deal(pile, HAND_SIZE);
-  return {
-    board: createInitialBoard(),
-    currentPlayer: 'white',
-    phase: 'playCard',
-    hands: { white: w.cards, black: b.cards },
-    drawPile: b.pile,
-    playedCard: null,
-    playPile: [],
-    activeCard: null,
-    wildPendingColor: null,
-    pendingCardId: null,
-    selectedSquare: null,
-    lastChessMove: null,
-    idleTurns: 0,
+    v: 2,
+    board: initialBoard(),
+    turn: 'w',
+    phase: 'card',
+    castling: { ...INITIAL_CASTLING },
+    ep: null,
+    hands,
+    deck,
+    discard: [starter],
+    activeColor: starter.color,
+    played: null,
+    lastMove: null,
+    noMoveStreak: 0,
+    uno: { w: 'none', b: 'none' },
     pendingCapture: null,
     result: null,
-    resultReason: '',
-    message: 'White — play a card, then move on that letter.',
-    enPassantTarget: null,
-    castlingRights: { ...INITIAL_CASTLING },
-    lastEvent: null,
-    extraCardPlays: 0,
-    pendingPromotion: null,
+    history: [],
+    turnCount: 0,
+    rng: rng0,
+    seq: 0,
   };
 }
 
-function clearPromotion(state: GameState): GameState {
-  return { ...state, pendingPromotion: null };
+// ───────────────────────────── queries ─────────────────────────────
+
+export function topCard(state: GameState): Card | null {
+  return state.discard[state.discard.length - 1] ?? null;
 }
 
-/** Whether this card may be played in the current playCard phase (incl. check escape). */
-export function cardCanBePlayed(state: GameState, card: UnoCard): boolean {
-  if (state.phase !== 'playCard' && state.phase !== 'pickWildColor') return false;
-  const player = state.currentPlayer;
-  const inCheck = isInCheck(state.board, player);
-
-  if (card.type === 'skip') {
-    return !inCheck;
+/** All moves the current player could make with `card` (pseudo-legal, card-restricted). */
+export function movesForCard(state: GameState, card: Card, side: Side = state.turn): Move[] {
+  if (card.kind !== 'number' && card.kind !== 'wild') return [];
+  const out: Move[] = [];
+  for (let from = 0; from < 64; from++) {
+    const p = state.board[from];
+    if (!p || sideOf(p) !== side) continue;
+    if (!cardUnlocksSquare(card, from)) continue;
+    for (const to of pieceTargets(state.board, from, state.castling, state.ep)) out.push({ from, to });
   }
-
-  if (card.type === 'reverse') {
-    const oppMove = state.lastChessMove;
-    return Boolean(oppMove && oppMove.by === opponent(player));
-  }
-
-  if (card.type === 'wild' || card.type === 'letter') {
-    if (!pieceOnUnlockedLines(state.board, player, card)) return false;
-    return getMovablePieceSquares(state, card).length > 0;
-  }
-
-  return false;
+  return out;
 }
 
-/** Why a card cannot be played (for UI feedback). */
-export function cardRejectReason(state: GameState, card: UnoCard): string {
-  if (cardCanBePlayed(state, card)) return '';
-  const player = state.currentPlayer;
-  if (isInCheck(state.board, player)) {
-    return 'In check — play a card that gets your king out of check.';
+/** Squares holding pieces that can move with the played card. */
+export function movableSquares(state: GameState): number[] {
+  if (state.phase !== 'move' || !state.played) return [];
+  return [...new Set(movesForCard(state, state.played).map((m) => m.from))];
+}
+
+/** Destinations for the piece on `from` under the played card. */
+export function targetsFrom(state: GameState, from: number): number[] {
+  if (state.phase !== 'move' || !state.played) return [];
+  if (!cardUnlocksSquare(state.played, from)) return [];
+  const p = state.board[from];
+  if (!p || sideOf(p) !== state.turn) return [];
+  return pieceTargets(state.board, from, state.castling, state.ep);
+}
+
+/** Why a card cannot be played right now ('' if it can). */
+export function cardBlockReason(state: GameState, card: Card, side: Side = state.turn): string {
+  if (state.phase !== 'card') return 'Not the card phase.';
+  if (!cardMatches(card, topCard(state), state.activeColor)) {
+    const top = topCard(state);
+    return state.activeColor && top?.kind === 'wild'
+      ? `Must match ${state.activeColor} (wild colour).`
+      : `Doesn't match ${top ? cardName(top) : 'the pile'}.`;
   }
-  if (card.type === 'reverse') return "Reverse — there's no opponent move to undo.";
-  if (card.type === 'skip') return "Skip — you can't play Skip while in check.";
-  if (card.type === 'letter') {
-    if (!pieceOnUnlockedLines(state.board, player, card)) {
-      return `No pieces on ${letterLinesDescription(card)}.`;
+  switch (card.kind) {
+    case 'number':
+      return movesForCard(state, card, side).length ? '' : 'No piece on that file or rank can move.';
+    case 'wild':
+      return movesForCard(state, card, side).length ? '' : 'No piece can move.';
+    case 'reverse':
+      return state.lastMove && state.lastMove.by === other(side) ? '' : 'No opponent move to undo.';
+    case 'draw2':
+      return '';
+  }
+}
+
+export function canPlayCard(state: GameState, card: Card, side: Side = state.turn): boolean {
+  return cardBlockReason(state, card, side) === '';
+}
+
+export function playableCards(state: GameState, side: Side = state.turn): Card[] {
+  return state.hands[side].filter((c) => canPlayCard(state, c, side));
+}
+
+/** True when the current player has no playable card and must discard one. */
+export function mustDiscardDead(state: GameState): boolean {
+  return state.phase === 'card' && playableCards(state).length === 0 && state.hands[state.turn].length > 0;
+}
+
+/** Reverse cards `side` could play to veto a king capture. */
+export function vetoCards(state: GameState): Card[] {
+  if (state.phase !== 'kingCaptured') return [];
+  return state.hands[state.turn].filter(
+    (c) => c.kind === 'reverse' && cardMatches(c, topCard(state), state.activeColor),
+  );
+}
+
+export function canCatchUno(state: GameState, catcher: Side): boolean {
+  return !state.result && state.uno[other(catcher)] === 'forgot';
+}
+
+export function canCallUno(state: GameState, side: Side): boolean {
+  const s = state.uno[side];
+  return !state.result && (s === 'needed' || s === 'forgot');
+}
+
+// ───────────────────────────── helpers ─────────────────────────────
+
+function fail(state: GameState, error: string): ActionResult {
+  return { ok: false, state, error };
+}
+
+function ok(state: GameState): ActionResult {
+  return { ok: true, state: { ...state, seq: state.seq + 1 } };
+}
+
+function log(state: GameState, entry: HistoryEntry): GameState {
+  return { ...state, history: [...state.history, entry] };
+}
+
+function removeFromHand(state: GameState, side: Side, cardId: string): [GameState, Card | null] {
+  const hand = state.hands[side];
+  const card = hand.find((c) => c.id === cardId) ?? null;
+  if (!card) return [state, null];
+  return [{ ...state, hands: { ...state.hands, [side]: hand.filter((c) => c.id !== cardId) } }, card];
+}
+
+/** Draw n cards for `side`, reshuffling the discard pile (all but the top card) when the deck runs out. */
+function drawCards(state: GameState, side: Side, n: number): GameState {
+  let { deck, discard, rng } = state;
+  const hand = [...state.hands[side]];
+  for (let i = 0; i < n; i++) {
+    if (deck.length === 0) {
+      if (discard.length <= 1) break;
+      const top = discard[discard.length - 1]!;
+      [deck, rng] = shuffle(discard.slice(0, -1), rng);
+      discard = [top];
     }
-    return `No legal moves on ${letterLinesDescription(card)}.`;
+    deck = deck.slice();
+    hand.push(deck.pop()!);
   }
-  return "You can't play that card right now.";
+  return { ...state, deck, discard, rng, hands: { ...state.hands, [side]: hand } };
 }
 
-function handleSkipCard(state: GameState, player: Player): GameState {
-  const cleared: GameState = {
-    ...state,
-    playedCard: null,
-    activeCard: null,
-    selectedSquare: null,
-  };
-  const { state: withDraw } = drawToPlayer(cleared, player, 1);
-  return msg(
-    {
-      ...withDraw,
-      phase: 'playCard',
-    },
-    'Skip — opponent skipped! Play another card, then move.',
+function endGame(state: GameState, winner: Side | null, reason: ResultReason, text?: string): GameState {
+  const result: GameResult = { winner, reason };
+  return log(
+    { ...state, phase: 'over', result, pendingCapture: null },
+    { side: state.turn, kind: 'end', card: null, text: text ?? resultText(result) },
   );
 }
 
-function handleReverseCard(state: GameState, player: Player): GameState {
-  const oppMove = state.lastChessMove;
-  if (!oppMove || oppMove.by !== opponent(player)) {
-    return finishTurn(msg(state, 'Reverse — nothing to undo. Turn ends.'), false);
+export function resultText(result: GameResult): string {
+  const name = (s: Side) => (s === 'w' ? 'White' : 'Black');
+  if (!result.winner) {
+    switch (result.reason) {
+      case 'sixNoMove':
+        return 'Draw — six cards in a row with no piece moving.';
+      case 'agreement':
+        return 'Draw by agreement.';
+      case 'aborted':
+        return 'Game aborted.';
+      case 'timeout':
+        return 'Draw — time ran out.';
+      default:
+        return 'Draw.';
+    }
   }
-
-  const restored = restoreFromRecord(oppMove.record);
-  let s: GameState = {
-    ...state,
-    board: restored.board,
-    enPassantTarget: restored.enPassantTarget,
-    castlingRights: restored.castlingRights,
-    lastChessMove: null,
-    phase: 'playCard',
-    activeCard: null,
-    selectedSquare: null,
-  };
-
-  const { state: withDraw, drawn } = drawToPlayer(s, player, 1);
-  if (drawn.length === 0) {
-    return finishTurn(
-      msg(withDraw, 'Reverse — draw pile empty. Turn ends.'),
-      false,
-    );
+  const w = name(result.winner);
+  const l = name(other(result.winner));
+  switch (result.reason) {
+    case 'kingCapture':
+      return `${w} captured the king!`;
+    case 'unoCaught':
+      return `${l} forgot to call UNO — ${w} wins!`;
+    case 'resign':
+      return `${l} resigned — ${w} wins.`;
+    case 'timeout':
+      return `${l} ran out of time — ${w} wins.`;
+    case 'abandon':
+      return `${l} left the game — ${w} wins.`;
+    default:
+      return `${w} wins.`;
   }
+}
 
-  const drawnCard = drawn[drawn.length - 1]!;
-  return msg(
-    {
-      ...withDraw,
-      pendingCardId: null,
-      lastEvent: { type: 'draw', player, cardId: drawnCard.id },
-    },
-    "Reverse — opponent's move undone. Play any card from your hand.",
-  );
+/** Keep each side's UNO status in sync with the board. */
+function refreshUno(state: GameState): GameState {
+  let changed = false;
+  const uno = { ...state.uno };
+  for (const side of ['w', 'b'] as Side[]) {
+    const lone = isLoneKing(state.board, side);
+    let next: UnoStatus = uno[side];
+    if (!lone) next = 'none';
+    else if (next === 'none') next = 'needed';
+    if (next !== uno[side]) {
+      uno[side] = next;
+      changed = true;
+    }
+  }
+  return changed ? { ...state, uno } : state;
 }
 
 /**
- * Returns true if `player` has at least one legal chess move with any card in their hand.
- * Used to detect checkmate / stalemate before the player picks a card.
+ * Finish the current player's turn: draw a replacement card, apply the
+ * six-card no-move draw rule, flag a forgotten UNO, and pass the turn.
  */
-function hasAnyLegalMoveWithHand(state: GameState, player: Player): boolean {
-  const hand = state.hands[player];
-  const stateAs = { ...state, currentPlayer: player };
-  for (const card of hand) {
-    if (cardCanBePlayed(stateAs, card)) return true;
-  }
-  return false;
+function finishTurn(state: GameState, pieceMoved: boolean, nextEp: number | null): GameState {
+  const side = state.turn;
+  let s = drawCards(state, side, 1);
+  s = { ...s, noMoveStreak: pieceMoved ? 0 : s.noMoveStreak + 1, played: null, ep: nextEp };
+  if (s.uno[side] === 'needed') s = { ...s, uno: { ...s.uno, [side]: 'forgot' } };
+  if (s.noMoveStreak >= NO_MOVE_DRAW_LIMIT) return endGame(s, null, 'sixNoMove');
+  return { ...s, turn: other(side), phase: 'card', turnCount: s.turnCount + 1 };
 }
 
-/** After a successful Reverse undo, still choosing the follow-up card. */
-export function isReverseBonusPending(state: GameState): boolean {
-  return state.phase === 'playCard' && state.playedCard?.type === 'reverse' && state.activeCard === null;
+function placeOnDiscard(state: GameState, card: Card, color: Color | null): GameState {
+  return { ...state, discard: [...state.discard, card], activeColor: color };
 }
 
-/** End chess phase when no legal moves exist (avoids soft-lock). */
-export function endTurnWithoutMove(state: GameState): GameState {
-  if (state.phase !== 'chess') return state;
-  return finishTurn(state, false);
-}
-
-/** Clear a broken reverse-bonus state and pass the turn. */
-export function abandonReverseBonus(state: GameState): GameState {
-  if (!isReverseBonusPending(state)) return state;
-  return finishTurn({ ...state, pendingCardId: null, activeCard: null }, false);
-}
-
-function finishTurn(state: GameState, pieceMoved: boolean): GameState {
-  const player = state.currentPlayer;
-  const next = opponent(player);
-  let idle = state.idleTurns;
-  if (!pieceMoved) idle += 1;
-  else idle = 0;
-
-  if (idle >= 6) {
-    return msg(
-      {
-        ...state,
-        phase: 'gameOver',
-        result: 'draw',
-        resultReason: 'Six turns with no piece moved.',
-        playedCard: null,
-        activeCard: null,
-        idleTurns: idle,
-      },
-      'Draw.',
-    );
-  }
-
-  const bonusPlays = state.extraCardPlays ?? 0;
-  if (bonusPlays > 1) {
-    return msg(
-      clearPromotion({
-        ...state,
-        playedCard: null,
-        activeCard: null,
-        selectedSquare: null,
-        wildPendingColor: null,
-        pendingCardId: null,
-        idleTurns: idle,
-        extraCardPlays: bonusPlays - 1,
-        phase: 'playCard',
-        currentPlayer: player,
-      }),
-      `Bonus turn — ${bonusPlays - 1} more card to play.`,
-    );
-  }
-  if (bonusPlays === 1) {
-    state = clearPromotion({
-      ...state,
-      playedCard: null,
-      activeCard: null,
-      selectedSquare: null,
-      wildPendingColor: null,
-      pendingCardId: null,
-      idleTurns: idle,
-      extraCardPlays: 0,
-    });
-    // Fall through to end turn vs opponent.
-  }
-
-  let s: GameState = clearPromotion({
+/** Undo a move record (Reverse card / veto). */
+function undoRecord(state: GameState, rec: MoveRecord): GameState {
+  return refreshUno({
     ...state,
-    playedCard: null,
-    activeCard: null,
-    selectedSquare: null,
-    wildPendingColor: null,
-    pendingCardId: null,
-    idleTurns: idle,
-    extraCardPlays: 0,
+    board: rec.boardBefore.slice(),
+    castling: { ...rec.castlingBefore },
+    lastMove: null,
   });
-
-  const { state: withDraw } = drawToPlayer(s, player, 1);
-  s = withDraw;
-
-  const nextState: GameState = {
-    ...s,
-    currentPlayer: next,
-    phase: 'playCard',
-    extraCardPlays: 0,
-  };
-
-  // Check if the incoming player is in checkmate or stalemate before they even pick a card.
-  const inCheck = isInCheck(nextState.board, next);
-  if (!hasAnyLegalMoveWithHand(nextState, next)) {
-    if (inCheck) {
-      const winner = player;
-      return msg(
-        {
-          ...nextState,
-          phase: 'gameOver',
-          result: winner,
-          resultReason: 'Checkmate.',
-        },
-        `Checkmate! ${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`,
-      );
-    }
-    // Stalemate — no legal move but not in check
-    return msg(
-      {
-        ...nextState,
-        phase: 'gameOver',
-        result: 'draw',
-        resultReason: 'Stalemate — no legal moves.',
-      },
-      'Stalemate! Draw.',
-    );
-  }
-
-  const checkMsg = inCheck ? ' You are in check!' : '';
-  return msg(
-    nextState,
-    `${next === 'white' ? 'White' : 'Black'} — play a card.${checkMsg}`,
-  );
 }
 
-export function playCard(state: GameState, cardId: string, wildColor?: Color): GameState {
-  if (state.phase !== 'playCard' && state.phase !== 'pickWildColor') return state;
+// ───────────────────────────── actions ─────────────────────────────
 
-  const player = state.currentPlayer;
-  const hand = state.hands[player];
-  const card = hand.find((c) => c.id === cardId);
-  if (!card) return state;
+function playCard(state: GameState, side: Side, cardId: string, color?: Color): ActionResult {
+  if (state.phase !== 'card') return fail(state, 'You can’t play a card right now.');
+  const card = state.hands[side].find((c) => c.id === cardId);
+  if (!card) return fail(state, 'That card isn’t in your hand.');
+  const reason = cardBlockReason(state, card, side);
+  if (reason) return fail(state, reason);
+  if (card.kind === 'wild' && !color) return fail(state, 'Choose a colour for the Wild.');
 
-  if (!cardCanBePlayed(state, card)) {
-    if (isInCheck(state.board, player)) {
-      return msg(state, 'In check — play a card that gets your king out of check.');
-    }
-    if (card.type === 'reverse') {
-      return msg(state, "Reverse — there's no opponent move to undo.");
-    }
-    if (card.type === 'letter') {
-      if (!pieceOnUnlockedLines(state.board, player, card)) {
-        return msg(state, `No pieces on ${letterLinesDescription(card)}.`);
+  let [s] = removeFromHand(state, side, cardId);
+  const active = card.kind === 'wild' ? color! : card.color;
+  s = placeOnDiscard(s, card, active);
+
+  switch (card.kind) {
+    case 'number':
+    case 'wild':
+      return ok({ ...s, phase: 'move', played: card });
+    case 'draw2': {
+      if (s.hands[side].length === 0) {
+        s = log(s, { side, kind: 'draw2', card, discarded: [] });
+        return ok(finishTurn(s, false, null));
       }
-      return msg(state, `No legal moves on ${letterLinesDescription(card)}.`);
+      return ok({ ...s, phase: 'draw2', played: card });
     }
-    if (card.type === 'skip') {
-      return msg(state, "Skip — you can't play Skip while in check.");
-    }
-    return msg(state, "You can't play that card right now.");
-  }
-
-  if (card.type === 'wild' && !wildColor && state.phase === 'playCard') {
-    return {
-      ...state,
-      phase: 'pickWildColor',
-      pendingCardId: cardId,
-      message: 'Wild — choose a color.',
-    };
-  }
-
-  if (card.type === 'letter') {
-    if (!pieceOnUnlockedLines(state.board, player, card)) {
-      return msg(state, `Can't play ${card.letter} — no pieces on ${letterLinesDescription(card)}.`);
-    }
-    const probe = { ...state, activeCard: card };
-    if (getMovablePieceSquares(probe, card).length === 0) {
-      return msg(state, `Can't play ${card.letter} — no legal moves on ${letterLinesDescription(card)}.`);
+    case 'reverse': {
+      const rec = s.lastMove!;
+      s = undoRecord(s, rec);
+      s = log(s, { side, kind: 'reverse', card, san: rec.san, from: rec.to, to: rec.from });
+      // The opponent regains the en passant chance they had before their undone move.
+      return ok(finishTurn(s, false, rec.epBefore));
     }
   }
-
-  const newHand = hand.filter((c) => c.id !== cardId);
-  const played: UnoCard = card;
-
-  let s: GameState = commitPlayedCard(
-    {
-      ...state,
-      hands: { ...state.hands, [player]: newHand },
-      activeCard: played,
-      wildPendingColor: card.type === 'wild' ? (wildColor ?? card.color) : null,
-      pendingCardId: null,
-      phase: 'chess',
-      lastEvent: { type: 'play', player, cardId: card.id },
-      selectedSquare: null,
-    },
-    played,
-  );
-
-  if (card.type === 'reverse') {
-    return handleReverseCard(s, player);
-  }
-
-  if (card.type === 'skip') {
-    return handleSkipCard(s, player);
-  }
-
-  const label = card.type === 'letter' ? card.letter : cardLabel(card);
-  const linesHint = card.type === 'letter' ? letterLinesDescription(card) : '';
-  s = msg(
-    s,
-    card.type === 'letter'
-      ? `Played ${label} — pieces on ${linesHint} may move.`
-      : `Played ${label}.`,
-  );
-
-  if (getMovablePieceSquares(s, s.activeCard!).length === 0) {
-    const inCheck = isInCheck(s.board, player);
-    if (inCheck) {
-      const winner = opponent(player);
-      return msg(
-        { ...s, phase: 'gameOver', result: winner, resultReason: 'Checkmate.' },
-        `Checkmate! ${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`,
-      );
-    }
-    return finishTurn(msg(s, 'All pieces are pinned on those lines — turn ends.'), false);
-  }
-
-  return s;
 }
 
-export function pickWildColor(state: GameState, color: Color): GameState {
-  if (state.phase !== 'pickWildColor' || !state.pendingCardId) return state;
-
-  const player = state.currentPlayer;
-  const card = state.hands[player].find((c) => c.id === state.pendingCardId);
-  if (!card) return state;
-
-  return playCard(state, state.pendingCardId, color);
-}
-
-export function selectSquare(state: GameState, sq: Square): GameState {
-  if (state.phase !== 'chess' || !state.activeCard) return state;
-  if (state.pendingPromotion) return state;
-  const card = state.activeCard;
-  const sel = state.selectedSquare;
-
-  if (!sel) {
-    const movable = getMovablePieceSquares(state, card);
-    if (!movable.some((m) => m.file === sq.file && m.rank === sq.rank)) return state;
-    return { ...state, selectedSquare: sq };
+function makeMove(state: GameState, side: Side, move: Move): ActionResult {
+  if (state.phase !== 'move' || !state.played) return fail(state, 'Play a card first.');
+  const card = state.played;
+  const piece = state.board[move.from];
+  if (!piece || sideOf(piece) !== side) return fail(state, 'That’s not your piece.');
+  if (!cardUnlocksSquare(card, move.from)) return fail(state, `The ${cardName(card)} doesn’t unlock ${sqName(move.from)}.`);
+  if (!pieceTargets(state.board, move.from, state.castling, state.ep).includes(move.to)) {
+    return fail(state, 'Illegal move.');
   }
-
-  if (sel.file === sq.file && sel.rank === sq.rank) {
-    return { ...state, selectedSquare: null };
+  const promo = needsPromotion(state.board, move.from, move.to);
+  if (promo && move.promotion && !['Q', 'R', 'B', 'N'].includes(move.promotion)) {
+    return fail(state, 'Invalid promotion piece.');
   }
+  const m: Move = { from: move.from, to: move.to, promotion: promo ? (move.promotion ?? 'Q') : undefined };
+  const san = toSan(state.board, state.castling, state.ep, m);
+  const applied = applyMove(state.board, state.castling, state.ep, m);
+  const record: MoveRecord = { ...applied.record, san };
 
-  const moves = getLegalMovesForPiece(state, sel, card);
-  if (!moves.some((m) => m.file === sq.file && m.rank === sq.rank)) {
-    const movable = getMovablePieceSquares(state, card);
-    if (movable.some((m) => m.file === sq.file && m.rank === sq.rank))
-      return { ...state, selectedSquare: sq };
-    return { ...state, selectedSquare: null };
-  }
-
-  const fromPiece = state.board[sel.rank][sel.file];
-  if (fromPiece?.type === 'pawn' && (sq.rank === 0 || sq.rank === 7)) {
-    return { ...state, selectedSquare: sel, message: 'Choose promotion.' };
-  }
-
-  return executeMove(state, sel, sq, 'queen');
-}
-
-export function executeMove(
-  state: GameState,
-  from: Square,
-  to: Square,
-  promotion: PieceType = 'queen',
-): GameState {
-  if (state.phase !== 'chess' || !state.activeCard) return state;
-
-  const pending = state.pendingPromotion;
-  const actualFrom = pending?.from ?? from;
-  const actualTo = pending?.to ?? to;
-  const piece = state.board[actualFrom.rank]?.[actualFrom.file];
-  if (!piece) return state;
-
-  const needsPromotion =
-    piece.type === 'pawn' && (actualTo.rank === 0 || actualTo.rank === 7);
-
-  if (needsPromotion && !pending) {
-    return msg(
-      {
-        ...state,
-        selectedSquare: actualFrom,
-        pendingPromotion: { from: actualFrom, to: actualTo },
-      },
-      'Choose promotion.',
-    );
-  }
-
-  const promo = needsPromotion ? promotion : 'queen';
-  if (needsPromotion && !isPromotionPiece(promo)) {
-    return msg(state, 'Invalid promotion piece.');
-  }
-
-  if (!isChessMoveLegal(state, actualFrom, actualTo, state.activeCard, needsPromotion ? promo : undefined)) {
-    return msg(state, 'Illegal move.');
-  }
-
-  const { board, record, kingCaptured, castlingRights, enPassantTarget } = applyChessMove(
-    state,
-    actualFrom,
-    actualTo,
-    needsPromotion ? promo : 'queen',
-  );
-  let s: GameState = clearPromotion({
+  let s: GameState = refreshUno({
     ...state,
-    board,
-    castlingRights,
-    enPassantTarget,
-    selectedSquare: null,
-    lastChessMove: { by: state.currentPlayer, record },
+    board: applied.board,
+    castling: applied.castling,
+    lastMove: record,
+  });
+  s = log(s, {
+    side,
+    kind: 'move',
+    card,
+    color: card.kind === 'wild' ? s.activeColor : undefined,
+    san,
+    from: m.from,
+    to: m.to,
   });
 
-  if (kingCaptured) {
-    return {
-      ...s,
-      currentPlayer: kingCaptured,
-      phase: 'kingCaptureVeto',
-      pendingCapture: { by: state.currentPlayer, move: record },
-      message: 'King captured! Opponent may Reverse.',
-    };
+  if (record.captured && typeOf(record.captured) === 'K') {
+    const victim = other(side);
+    s = drawCards({ ...s, noMoveStreak: 0, played: null }, side, 1);
+    s = { ...s, pendingCapture: record, turn: victim, phase: 'kingCaptured', ep: null };
+    if (vetoCards(s).length === 0) return ok(endGame(s, side, 'kingCapture'));
+    return ok(s);
   }
 
-  return finishTurn(msg(s, 'Move done.'), true);
+  return ok(finishTurn(s, true, applied.ep));
 }
 
-export function vetoWithReverse(state: GameState, cardId: string): GameState {
-  if (state.phase !== 'kingCaptureVeto' || !state.pendingCapture) return state;
-  const opp = opponent(state.pendingCapture.by);
-  if (state.currentPlayer !== opp) return state;
-  const card = state.hands[opp].find((c) => c.id === cardId);
-  if (!card || card.type !== 'reverse') return state;
-
-  const restored = restoreFromRecord(state.pendingCapture.move);
-  const hand = state.hands[opp].filter((c) => c.id !== cardId);
-  return msg(
-    commitPlayedCard(
-      {
-        ...state,
-        board: restored.board,
-        enPassantTarget: restored.enPassantTarget,
-        castlingRights: restored.castlingRights,
-        hands: { ...state.hands, [opp]: hand },
-        phase: 'playCard',
-        pendingCapture: null,
-        activeCard: null,
-        currentPlayer: state.pendingCapture.by,
-      },
-      card,
-    ),
-    'Reverse — capture vetoed.',
-  );
+function discardDead(state: GameState, side: Side, cardId: string): ActionResult {
+  if (state.phase !== 'card') return fail(state, 'You can’t discard right now.');
+  if (playableCards(state, side).length > 0) return fail(state, 'You have a playable card — you must play it.');
+  let [s, card] = removeFromHand(state, side, cardId);
+  if (!card) return fail(state, 'That card isn’t in your hand.');
+  s = placeOnDiscard(s, card, card.color);
+  s = log(s, { side, kind: 'dead', card });
+  return ok(finishTurn(s, false, null));
 }
 
-export function acceptCapture(state: GameState): GameState {
-  if (state.phase !== 'kingCaptureVeto' || !state.pendingCapture) return state;
-  const winner = state.pendingCapture.by;
-  return msg(
-    {
-      ...state,
-      phase: 'gameOver',
-      result: winner,
-      resultReason: 'King captured.',
-      pendingCapture: null,
-    },
-    `${winner} wins!`,
-  );
+function draw2Discard(state: GameState, side: Side, cardIds: string[]): ActionResult {
+  if (state.phase !== 'draw2') return fail(state, 'No Draw Two to resolve.');
+  const need = Math.min(2, state.hands[side].length);
+  const unique = [...new Set(cardIds)];
+  if (unique.length !== need) return fail(state, `Choose ${need} card${need === 1 ? '' : 's'} to discard.`);
+  let s = state;
+  const discarded: Card[] = [];
+  for (const id of unique) {
+    const [next, card] = removeFromHand(s, side, id);
+    if (!card) return fail(state, 'That card isn’t in your hand.');
+    s = next;
+    discarded.push(card);
+  }
+  // Discards are slipped under the Draw Two so it stays the card to match.
+  const top = s.discard[s.discard.length - 1]!;
+  s = { ...s, discard: [...s.discard.slice(0, -1), ...discarded, top] };
+  s = drawCards(s, side, discarded.length);
+  s = log(s, { side, kind: 'draw2', card: state.played, discarded });
+  return ok(finishTurn(s, false, null));
 }
 
-export function getLegalMoves(state: GameState): Square[] {
-  if (!state.activeCard || !state.selectedSquare) return [];
-  return getLegalMovesForPiece(state, state.selectedSquare, state.activeCard);
+function veto(state: GameState, side: Side, cardId: string): ActionResult {
+  if (state.phase !== 'kingCaptured' || !state.pendingCapture) return fail(state, 'Nothing to veto.');
+  const card = vetoCards(state).find((c) => c.id === cardId);
+  if (!card) return fail(state, 'You need a matching Reverse to veto.');
+  const rec = state.pendingCapture;
+  let [s] = removeFromHand(state, side, cardId);
+  s = placeOnDiscard(s, card, card.color);
+  s = undoRecord({ ...s, pendingCapture: null, phase: 'card' }, rec);
+  s = log(s, { side, kind: 'veto', card, san: rec.san, from: rec.to, to: rec.from });
+  return ok(finishTurn(s, false, rec.epBefore));
 }
 
-export function getVetoReverses(state: GameState): UnoCard[] {
-  if (state.phase !== 'kingCaptureVeto') return [];
-  return state.hands[state.currentPlayer].filter((c) => c.type === 'reverse');
+function acceptCapture(state: GameState): ActionResult {
+  if (state.phase !== 'kingCaptured' || !state.pendingCapture) return fail(state, 'Nothing to accept.');
+  return ok(endGame(state, state.pendingCapture.by, 'kingCapture'));
 }
 
-export function applyAction(state: GameState, action: GameAction): GameState {
+function callUno(state: GameState, side: Side): ActionResult {
+  if (!canCallUno(state, side)) return fail(state, 'You don’t need to call UNO.');
+  const s = log({ ...state, uno: { ...state.uno, [side]: 'called' } }, { side, kind: 'uno', card: null });
+  return ok(s);
+}
+
+function catchUno(state: GameState, side: Side): ActionResult {
+  if (!canCatchUno(state, side)) return fail(state, 'Nothing to catch.');
+  const s = log(state, { side, kind: 'catch', card: null });
+  return ok(endGame(s, side, 'unoCaught'));
+}
+
+/**
+ * Apply an action by `side`. Pure: never mutates `state`.
+ * Turn-independent actions (resign, UNO call/catch) may be made by either side.
+ */
+export function applyAction(state: GameState, side: Side, action: GameAction): ActionResult {
+  if (state.result) return fail(state, 'The game is over.');
   switch (action.type) {
-    case 'playCard':
-      return playCard(state, action.cardId, action.wildColor);
-    case 'pickWild':
-      return pickWildColor(state, action.color);
-    case 'selectSquare':
-      return selectSquare(state, action.square);
+    case 'resign':
+      return ok(endGame(state, other(side), 'resign'));
+    case 'callUno':
+      return callUno(state, side);
+    case 'catchUno':
+      return catchUno(state, side);
+    default:
+      break;
+  }
+  if (state.turn !== side) return fail(state, 'It’s not your turn.');
+  switch (action.type) {
+    case 'play':
+      return playCard(state, side, action.cardId, action.color);
     case 'move':
-      return executeMove(state, action.from, action.to, action.promotion ?? 'queen');
+      return makeMove(state, side, { from: action.from, to: action.to, promotion: action.promotion });
+    case 'discardDead':
+      return discardDead(state, side, action.cardId);
+    case 'draw2Discard':
+      return draw2Discard(state, side, action.cardIds);
     case 'veto':
-      return vetoWithReverse(state, action.cardId);
+      return veto(state, side, action.cardId);
     case 'acceptCapture':
       return acceptCapture(state);
-    case 'discardForRedraw':
-      return discardForRedraw(state, action.cardId);
     default:
-      return state;
+      return fail(state, 'Unknown action.');
   }
 }
 
-/** Hide opponent hand — only count visible; played card is public. */
-export function viewForPlayer(state: GameState, viewer: Player): GameState {
-  const opp = opponent(viewer);
-  const hidden = state.hands[opp].map((_, i) => ({
-    id: `hidden-${opp}-${i}`,
-    color: 'red' as Color,
-    type: 'letter' as const,
-    letter: 'A' as const,
-  }));
+/** End the game from outside the rules (clock flag, agreement, abandon, abort). */
+export function forceResult(state: GameState, winner: Side | null, reason: ResultReason): GameState {
+  if (state.result) return state;
+  return { ...endGame(state, winner, reason), seq: state.seq + 1 };
+}
+
+/**
+ * What a given player is allowed to see: opponent hand and deck order are hidden
+ * (replaced by face-down placeholders) and the RNG state is removed.
+ */
+export function viewFor(state: GameState, viewer: Side | null): GameState {
+  const hide = (cards: Card[], tag: string): Card[] =>
+    cards.map((_, i) => ({ id: `${tag}${i}`, kind: 'number', color: null }) as Card);
   return {
     ...state,
     hands: {
-      ...state.hands,
-      [opp]: hidden,
+      w: viewer === 'w' ? state.hands.w : hide(state.hands.w, 'hw'),
+      b: viewer === 'b' ? state.hands.b : hide(state.hands.b, 'hb'),
     },
+    deck: hide(state.deck, 'd'),
+    rng: 0,
   };
 }
+
+/** Random seed helper exposed for callers that want reproducible games. */
+export function seedFrom(n: number): number {
+  return nextRandom(n >>> 0)[1];
+}
+
+export { findKing };

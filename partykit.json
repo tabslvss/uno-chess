@@ -1,8 +1,12 @@
 {
+  "$schema": "https://www.partykit.io/schema.json",
   "name": "unochess",
-  "main": "party/index.ts",
+  "main": "party/main.ts",
+  "parties": {
+    "game": "party/game.ts"
+  },
   "compatibilityDate": "2024-10-01",
   "vars": {
-    "ALLOWED_ORIGINS": "https://uno-chess.vercel.app,http://localhost:5173"
+    "ALLOWED_ORIGINS": "https://uno-chess.vercel.app"
   }
 }

@@ -1,99 +1,160 @@
+/**
+ * Core types for UNO Chess.
+ *
+ * Board squares are indices 0–63: `sq = rank * 8 + file`, where rank 0 is
+ * chess rank 1 (White's back rank) and file 0 is the a-file.
+ */
+
+export type Side = 'w' | 'b';
+export type PieceType = 'P' | 'N' | 'B' | 'R' | 'Q' | 'K';
+/** e.g. "wK", "bP" — matches react-chessboard piece codes. */
+export type Piece = `${Side}${PieceType}`;
+export type Board = (Piece | null)[];
+
 export type Color = 'red' | 'yellow' | 'green' | 'blue';
-export type Player = 'white' | 'black';
-export type PieceType = 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn';
-export type CardLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
-export type UnoCardType = 'letter' | 'skip' | 'reverse' | 'wild';
-export type BotDifficulty = 'easy' | 'medium' | 'hard' | 'extreme';
+export type CardKind = 'number' | 'reverse' | 'draw2' | 'wild';
 
-export interface Piece {
-  type: PieceType;
-  player: Player;
-}
-
-export interface Square {
-  file: number;
-  rank: number;
-}
-
-export interface UnoCard {
+export interface Card {
   id: string;
-  color: Color;
-  type: UnoCardType;
-  letter?: CardLetter;
-}
-
-export interface ChessMoveRecord {
-  from: Square;
-  to: Square;
-  piece: Piece;
-  captured: Piece | null;
-  promotion?: PieceType;
-  enPassant?: boolean;
-  castling?: 'kingside' | 'queenside';
-  boardBefore: (Piece | null)[][];
-  enPassantTarget: Square | null;
-  castlingRights: CastlingRights;
-  halfMoveClock: number;
+  kind: CardKind;
+  /** null for Wild cards. */
+  color: Color | null;
+  /** 1–8 for number cards (A=1 … H=8), otherwise undefined. */
+  value?: number;
 }
 
 export interface CastlingRights {
-  whiteKingside: boolean;
-  whiteQueenside: boolean;
-  blackKingside: boolean;
-  blackQueenside: boolean;
+  wK: boolean;
+  wQ: boolean;
+  bK: boolean;
+  bQ: boolean;
 }
 
-export type Phase = 'playCard' | 'chess' | 'pickWildColor' | 'kingCaptureVeto' | 'gameOver';
+export interface Move {
+  from: number;
+  to: number;
+  promotion?: Exclude<PieceType, 'P' | 'K'>;
+}
 
-export type GameResult = 'white' | 'black' | 'draw' | null;
+/** Everything needed to undo a chess move (Reverse card / king-capture veto). */
+export interface MoveRecord extends Move {
+  by: Side;
+  piece: Piece;
+  captured: Piece | null;
+  capturedSquare: number | null;
+  castle: 'K' | 'Q' | null;
+  enPassant: boolean;
+  boardBefore: Board;
+  castlingBefore: CastlingRights;
+  epBefore: number | null;
+  san: string;
+}
 
-export type GameEvent =
-  | { type: 'play'; player: Player; cardId: string }
-  | { type: 'draw'; player: Player; cardId: string }
-  | null;
+/**
+ * UNO-call status for a side reduced to a lone king.
+ * - none: has other pieces
+ * - needed: lone king, must call UNO before the end of their turn
+ * - called: safely called
+ * - forgot: ended a turn without calling — opponent may catch them
+ */
+export type UnoStatus = 'none' | 'needed' | 'called' | 'forgot';
+
+export type Phase =
+  /** Current player must play a card (or discard a dead card). */
+  | 'card'
+  /** A number/Wild card was played — current player must move a piece. */
+  | 'move'
+  /** A Draw Two was played — current player picks cards to discard. */
+  | 'draw2'
+  /** `turn` player's king was just captured; they may veto with a Reverse. */
+  | 'kingCaptured'
+  | 'over';
+
+export type ResultReason =
+  | 'kingCapture'
+  | 'unoCaught'
+  | 'resign'
+  | 'timeout'
+  | 'sixNoMove'
+  | 'agreement'
+  | 'abandon'
+  | 'aborted';
+
+export interface GameResult {
+  /** null = draw / aborted */
+  winner: Side | null;
+  reason: ResultReason;
+}
+
+export type HistoryKind =
+  | 'move'
+  | 'reverse'
+  | 'draw2'
+  | 'dead'
+  | 'veto'
+  | 'uno'
+  | 'catch'
+  | 'end';
+
+export interface HistoryEntry {
+  side: Side;
+  kind: HistoryKind;
+  card: Card | null;
+  /** Chosen color for wilds. */
+  color?: Color | null;
+  san?: string;
+  from?: number;
+  to?: number;
+  /** Cards discarded via Draw Two (public). */
+  discarded?: Card[];
+  text?: string;
+}
 
 export interface GameState {
-  board: (Piece | null)[][];
-  currentPlayer: Player;
+  v: 2;
+  board: Board;
+  turn: Side;
   phase: Phase;
-  hands: Record<Player, UnoCard[]>;
-  /** Central facedown "Uno Chess" draw pile */
-  drawPile: UnoCard[];
-  /** Card played this turn (cleared between turns; use for rules UI) */
-  playedCard: UnoCard | null;
-  /** All cards played this game — bottom to top, visible to both players */
-  playPile: UnoCard[];
-  activeCard: UnoCard | null;
-  wildPendingColor: Color | null;
-  pendingCardId: string | null;
-  selectedSquare: Square | null;
-  lastChessMove: { by: Player; record: ChessMoveRecord } | null;
-  idleTurns: number;
-  pendingCapture: { by: Player; move: ChessMoveRecord } | null;
-  result: GameResult;
-  resultReason: string;
-  message: string;
-  enPassantTarget: Square | null;
-  castlingRights: CastlingRights;
-  /** Drives play/draw animations in the UI */
-  lastEvent: GameEvent;
-  /** After Skip: play another card + move before passing the turn */
-  extraCardPlays: number;
-  /** Pawn reached the back rank — waiting for promotion piece choice */
-  pendingPromotion: { from: Square; to: Square } | null;
-}
-
-export interface GameActionResult {
-  state: GameState;
-  ok: boolean;
-  error?: string;
+  castling: CastlingRights;
+  /** En passant target square for the side to move, or null. */
+  ep: number | null;
+  hands: Record<Side, Card[]>;
+  /** Draw pile; the top of the pile is the END of the array. */
+  deck: Card[];
+  /** Discard pile; top is the END of the array. */
+  discard: Card[];
+  /** Colour to match. null = anything matches (wild starter). */
+  activeColor: Color | null;
+  /** Card played this turn (number/wild while in `move` phase). */
+  played: Card | null;
+  /** Last chess move on the board that can be undone by a Reverse. */
+  lastMove: MoveRecord | null;
+  /** Cards played in a row without any piece moving. */
+  noMoveStreak: number;
+  uno: Record<Side, UnoStatus>;
+  /** King capture awaiting a possible Reverse veto. */
+  pendingCapture: MoveRecord | null;
+  result: GameResult | null;
+  history: HistoryEntry[];
+  /** Full turns completed (increments every time the turn passes). */
+  turnCount: number;
+  /** Deterministic RNG state (stripped from player views). */
+  rng: number;
+  /** Bumped on every successful action — handy for sync/animation keys. */
+  seq: number;
 }
 
 export type GameAction =
-  | { type: 'playCard'; cardId: string; wildColor?: Color }
-  | { type: 'pickWild'; color: Color }
-  | { type: 'selectSquare'; square: Square }
-  | { type: 'move'; from: Square; to: Square; promotion?: PieceType }
+  | { type: 'play'; cardId: string; color?: Color }
+  | { type: 'move'; from: number; to: number; promotion?: Exclude<PieceType, 'P' | 'K'> }
+  | { type: 'discardDead'; cardId: string }
+  | { type: 'draw2Discard'; cardIds: string[] }
   | { type: 'veto'; cardId: string }
   | { type: 'acceptCapture' }
-  | { type: 'discardForRedraw'; cardId: string };
+  | { type: 'callUno' }
+  | { type: 'catchUno' }
+  | { type: 'resign' };
+
+export type ActionResult =
+  | { ok: true; state: GameState }
+  | { ok: false; state: GameState; error: string };

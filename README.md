@@ -36,7 +36,8 @@ jump into casual matchmaking, or climb the ranked ladder with chess.com-style Gl
 - A game screen that **always fits your screen** — board, both players, piles and your whole hand are visible without scrolling on laptops and phones.
 - Hover a card to preview the file & rank it unlocks; legal-move dots; drag or click to move; promotion picker; keyboard shortcuts (`1–9` play cards, `U` UNO, `F` flip).
 - Sounds, confetti, smooth card & piece animations, light/dark themes and five board colours.
-- **Avatars** from the [DiceBear](https://www.dicebear.com) API: everyone gets a random one automatically, can browse 10 styles in a picker, shuffle endlessly, or hit *Randomize* any time. Only DiceBear URLs are accepted (validated in the browser, on the game server and by a database constraint).
+- **Avatars** from the [DiceBear](https://www.dicebear.com) *Adventurer* API: everyone gets a random one automatically, can pick from a grid, shuffle endlessly, or hit *Randomize* any time. Only DiceBear URLs are accepted (validated in the browser, on the game server and by a database constraint).
+- **Leaderboard** comes pre-populated with easy-to-beat sample players (all below the 1200 starting rating) — seeded into Supabase by a migration, and built into the site as a fallback.
 
 **Modes**
 | Mode | Account | Notes |
@@ -165,7 +166,7 @@ flowchart LR
 
 ## Accounts, ratings & Supabase
 
-1. Create a Supabase project and run the migration in `supabase/migrations/` (SQL editor, or `npx supabase link && npm run db:push`).
+1. Create a Supabase project and run the migrations in `supabase/migrations/` in order (SQL editor, or `npx supabase link && npm run db:push`). The last one seeds the sample leaderboard players; remove them any time with `delete from auth.users where email like '%@seed.unochess.invalid';`.
 2. Frontend env (Vercel / `.env`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 3. Game-server env (PartyKit): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (and `SUPABASE_JWT_SECRET` only for legacy HS256 projects).
 4. In Supabase → Authentication → URL configuration, add your site URL to the redirect list. Enable the Google / GitHub / Discord providers if you want social login.
@@ -191,6 +192,10 @@ Set the server secrets with `npx partykit env add <NAME>`: `PARTY_SECRET` (any l
 - **Integration** (`npm run test:online`) — real WebSocket clients against `partykit dev`: matchmaking, a full game driven by bots, spectators, cheat attempts and validation.
 - **End-to-end** (`npm run test:e2e`) — Playwright: bot games, refresh/resume, resignation, two browsers playing a friend game (spectator, draw offer, rematch), casual matchmaking, UNO call/catch, Reverse veto, Draw Two, and a check that the game screen never scrolls on desktop or mobile.
 - The SQL migration was verified against PostgreSQL 16 (re-runnable, unique usernames, idempotent `record_game`, permissions).
+
+## Art assets
+
+Sidebar icons come from Microsoft's MIT-licensed Fluent Emoji set. Optional higher-quality art (bot portraits, logo, a custom piece set) can be dropped into `public/` and is picked up automatically — see [docs/ASSET_PROMPTS.md](docs/ASSET_PROMPTS.md) for exact files, sizes and ready-to-use image-generation prompts.
 
 ## Credits
 

@@ -17,20 +17,23 @@ export function Avatar({
   className?: string;
   ring?: string;
 }) {
-  const src = isLocalAvatar(url) ? url! : avatarSrc(seed, url);
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const failed = failedSrc === src;
+  // Local art (bots) may have a higher-quality PNG dropped in next to the SVG.
+  const candidates = isLocalAvatar(url) ? (url!.endsWith('.svg') ? [url!.replace(/\.svg$/, '.png'), url!] : [url!]) : [avatarSrc(seed, url)];
+  const key = candidates.join('|');
+  const [failed, setFailed] = useState<{ key: string; n: number }>({ key, n: 0 });
+  const n = failed.key === key ? failed.n : 0;
+  const src = candidates[n];
   return (
     <span
       className={cn('relative inline-grid shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2', className)}
       style={{ width: size, height: size, boxShadow: ring ? `0 0 0 3px ${ring}` : undefined }}
     >
-      {failed ? (
+      {!src ? (
         <span className="font-display font-bold text-ink-soft" style={{ fontSize: size * 0.45 }}>
           {name.slice(0, 1).toUpperCase()}
         </span>
       ) : (
-        <img src={src} alt="" width={size} height={size} className="h-full w-full object-cover" onError={() => setFailedSrc(src)}
+        <img src={src} alt="" width={size} height={size} className="h-full w-full object-cover" onError={() => setFailed({ key, n: n + 1 })}
           loading="lazy"
           decoding="async" />
       )}

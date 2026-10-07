@@ -83,7 +83,7 @@ export default function SettingsPage() {
   const s = useSettings();
   return (
     <PageShell>
-      <PageTitle eyebrow="Make yourself at home" title="Settings" />
+      <PageTitle title="Settings" icon="/icons/settings.svg" />
       <div className="grid gap-5 lg:grid-cols-2">
         <Section title="Appearance">
           <div className="label mb-1.5">Theme</div>
@@ -94,9 +94,9 @@ export default function SettingsPage() {
               applyTheme(theme);
             }}
             options={[
-              { value: 'light', label: '☀️ Light' },
-              { value: 'system', label: '🖥️ System' },
-              { value: 'dark', label: '🌙 Dark' },
+              { value: 'light', label: 'Light' },
+              { value: 'system', label: 'System' },
+              { value: 'dark', label: 'Dark' },
             ]}
           />
           <div className="label mb-1.5 mt-5">Board</div>
@@ -105,7 +105,7 @@ export default function SettingsPage() {
               <button
                 key={b.id}
                 onClick={() => s.set({ board: b.id })}
-                className={cn('rounded-xl p-1.5 transition', s.board === b.id ? 'bg-terracotta/15 ring-2 ring-terracotta' : 'hover:bg-surface-2')}
+                className={cn('rounded-xl p-1.5 transition', s.board === b.id ? 'bg-brand/15 ring-2 ring-brand' : 'hover:bg-surface-2')}
                 aria-pressed={s.board === b.id}
               >
                 <div className="relative grid aspect-square grid-cols-2 overflow-hidden rounded-lg">
@@ -113,7 +113,7 @@ export default function SettingsPage() {
                     <span key={i} style={{ background: c }} />
                   ))}
                   {s.board === b.id && (
-                    <Check className="absolute inset-0 m-auto rounded-full bg-terracotta p-0.5 text-white" size={18} />
+                    <Check className="absolute inset-0 m-auto rounded-full bg-brand p-0.5 text-white" size={18} />
                   )}
                 </div>
                 <span className="mt-1 block text-xs font-bold">{b.name}</span>
@@ -144,7 +144,7 @@ export default function SettingsPage() {
               value={s.volume}
               onChange={(e) => s.set({ volume: Number(e.target.value) })}
               onPointerUp={() => playSound('cardPlay')}
-              className="flex-1 accent-[var(--color-terracotta)]"
+              className="flex-1 accent-[var(--color-brand)]"
               aria-label="Volume"
             />
           </label>

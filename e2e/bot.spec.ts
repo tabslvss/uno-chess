@@ -5,7 +5,7 @@ test('home → bot game: play turns against the bot', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: /Play a card/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /Play UNO Chess Online/ })).toBeVisible();
   await page.getByTestId('cta-play').click();
   await page.getByRole('tab', { name: /Bots/ }).click();
   await page.getByTestId('bot-pebble').click();

@@ -1,4 +1,5 @@
-import { Bot, Crown, Globe2, Link2, Lock, Play as PlayIcon, Swords, Timer, Users, Zap } from 'lucide-react';
+import { Link2, Lock } from 'lucide-react';
+import { defaultPieces } from 'react-chessboard';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -14,20 +15,33 @@ import { newRoomId, onlineEnabled } from '@/net/config';
 import { useLobby } from '@/net/useLobby';
 import { displayName, myAvatar, ratingFor, useAuth } from '@/stores/auth';
 import { Avatar } from '@/components/Avatar';
+import { OptionalImg } from '@/components/OptionalImg';
 import { useLocalGame } from '@/stores/localGame';
 import { supabaseEnabled } from '@/lib/supabase';
 
-const CAT_ICON: Record<TimeCategory, typeof Zap> = { bullet: Zap, blitz: Timer, rapid: Timer };
+const CAT_ICON: Record<TimeCategory, string> = { bullet: '/icons/bullet.svg', blitz: '/icons/blitz.svg', rapid: '/icons/rapid.svg' };
+
+function Ico({ src, size = 18 }: { src: string; size?: number }) {
+  return <img src={src} alt="" width={size} height={size} className="shrink-0" />;
+}
+
+function PieceIcon({ code }: { code: 'wK' | 'bK' }) {
+  const P = defaultPieces[code]!;
+  return (
+    <span className="inline-block h-5 w-5">
+      <P />
+    </span>
+  );
+}
 
 function TimeControlPicker({ value, onChange, allowUntimed }: { value: string | null; onChange: (v: string | null) => void; allowUntimed?: boolean }) {
   return (
     <div className="space-y-3">
       {(['bullet', 'blitz', 'rapid'] as TimeCategory[]).map((cat) => {
-        const Icon = CAT_ICON[cat];
         return (
           <div key={cat}>
             <div className="label mb-1.5 flex items-center gap-1.5">
-              <Icon size={13} /> {cat}
+              <Ico src={CAT_ICON[cat]} size={16} /> {cat}
             </div>
             <div className="grid grid-cols-3 gap-2">
               {TIME_CONTROLS.filter((t) => t.category === cat).map((t) => (
@@ -38,7 +52,7 @@ function TimeControlPicker({ value, onChange, allowUntimed }: { value: string | 
                   aria-pressed={value === t.id}
                   className={cn(
                     'rounded-xl border px-2 py-2.5 font-extrabold transition',
-                    value === t.id ? 'border-terracotta bg-terracotta/10 text-terracotta' : 'border-line bg-surface hover:bg-surface-2',
+                    value === t.id ? 'border-brand bg-brand/15 text-ink' : 'border-line bg-surface hover:bg-surface-2',
                   )}
                 >
                   {t.label}
@@ -55,10 +69,10 @@ function TimeControlPicker({ value, onChange, allowUntimed }: { value: string | 
           aria-pressed={value === null}
           className={cn(
             'w-full rounded-xl border px-2 py-2.5 font-extrabold transition',
-            value === null ? 'border-terracotta bg-terracotta/10 text-terracotta' : 'border-line bg-surface hover:bg-surface-2',
+            value === null ? 'border-brand bg-brand/15 text-ink' : 'border-line bg-surface hover:bg-surface-2',
           )}
         >
-          ☕ Untimed — take it easy
+          <span className="inline-flex items-center gap-2"><Ico src="/icons/untimed.svg" /> Untimed</span>
         </button>
       )}
     </div>
@@ -71,9 +85,9 @@ function ColorPicker({ value, onChange }: { value: Side | 'random'; onChange: (v
       value={value}
       onChange={onChange}
       options={[
-        { value: 'w', label: '♔ White' },
-        { value: 'random', label: '🎲 Random' },
-        { value: 'b', label: '♚ Black' },
+        { value: 'w', label: <span className="flex items-center justify-center gap-1.5"><PieceIcon code="wK" /> White</span> },
+        { value: 'random', label: 'Random' },
+        { value: 'b', label: <span className="flex items-center justify-center gap-1.5"><PieceIcon code="bK" /> Black</span> },
       ]}
     />
   );
@@ -101,7 +115,7 @@ function OnlineTab() {
   if (!onlineEnabled()) {
     return (
       <div className="rounded-2xl bg-surface-2 p-6 text-center">
-        <Globe2 className="mx-auto text-ink-faint" />
+        <img src="/icons/online.svg" alt="" width={36} height={36} className="mx-auto" />
         <p className="mt-2 font-bold">Online play isn’t configured on this deployment yet.</p>
         <p className="text-sm text-ink-soft">Set VITE_PARTYKIT_HOST to your PartyKit server. Bots and pass & play work offline!</p>
       </div>
@@ -118,8 +132,8 @@ function OnlineTab() {
           value={mode}
           onChange={setMode}
           options={[
-            { value: 'casual', label: <span className="flex items-center justify-center gap-1.5"><Globe2 size={15} /> Casual</span> },
-            { value: 'ranked', label: <span className="flex items-center justify-center gap-1.5"><Crown size={15} /> Ranked</span> },
+            { value: 'casual', label: <span className="flex items-center justify-center gap-1.5"><Ico src="/icons/online.svg" /> Casual</span> },
+            { value: 'ranked', label: <span className="flex items-center justify-center gap-1.5"><Ico src="/icons/ranked.svg" /> Ranked</span> },
           ]}
         />
         <TimeControlPicker
@@ -136,7 +150,7 @@ function OnlineTab() {
           <div className="label">{ranked ? `Your ${control.category} rating` : 'Playing as'}</div>
           <div className="mt-1 flex items-center gap-3">
             <Avatar seed={displayName(auth)} url={myAvatar(auth)} name={displayName(auth)} size={44} />
-            <div className="min-w-0 truncate font-display text-3xl font-bold">{ranked && auth.session ? formatRating(myRating) : displayName(auth)}</div>
+            <div className="min-w-0 truncate font-display text-xl font-bold">{ranked && auth.session ? formatRating(myRating) : displayName(auth)}</div>
           </div>
           {ranked && auth.session && (
             <p className="mt-1 text-sm text-ink-soft">
@@ -152,7 +166,7 @@ function OnlineTab() {
           </Link>
         ) : (
           <button className="btn-primary mt-auto !py-3.5 !text-base" onClick={() => lobby.join(mode, tc)} disabled={searching} data-testid="find-game">
-            <PlayIcon size={18} /> Play {control.label}
+            Play {control.label}
           </button>
         )}
         {lobby.stats && (
@@ -168,7 +182,7 @@ function OnlineTab() {
             {[0, 1, 2].map((i) => (
               <motion.span
                 key={i}
-                className="absolute inset-0 rounded-full border-4 border-terracotta"
+                className="absolute inset-0 rounded-full border-4 border-brand"
                 initial={{ scale: 0.4, opacity: 0.8 }}
                 animate={{ scale: 1.3, opacity: 0 }}
                 transition={{ duration: 2, repeat: Infinity, delay: i * 0.66 }}
@@ -273,10 +287,12 @@ function BotTab() {
             data-testid={`bot-${b.id}`}
             className={cn(
               'flex flex-col items-center rounded-2xl border-2 p-4 text-center transition',
-              botId === b.id ? 'border-terracotta bg-terracotta/5 shadow-[var(--shadow-soft)]' : 'border-transparent bg-surface-2 hover:bg-surface',
+              botId === b.id ? 'border-brand bg-brand/10' : 'border-transparent bg-surface-2 hover:bg-surface',
             )}
           >
-            <motion.img src={b.avatar} alt="" className="h-20 w-20 rounded-2xl" animate={botId === b.id ? { rotate: [0, -6, 6, 0] } : {}} />
+            <motion.div animate={botId === b.id ? { rotate: [0, -6, 6, 0] } : {}}>
+              <OptionalImg srcs={[`/bots/${b.id}.png`, b.avatar]} alt="" className="h-20 w-20 rounded-xl object-cover" />
+            </motion.div>
             <span className="mt-2 font-display text-lg font-bold">{b.name}</span>
             <span className="chip mt-1 text-white" style={{ background: b.accent }}>
               ~{b.rating}
@@ -290,12 +306,12 @@ function BotTab() {
           <div className="label">I play as</div>
           <ColorPicker value={color} onChange={setColor} />
           <button className="btn-ghost !px-0 text-sm" onClick={() => setShowTc((s) => !s)}>
-            <Timer size={15} /> {tc ? `Clock: ${timeControlById(tc).label}` : 'Untimed'} · change
+            <Ico src="/icons/rapid.svg" size={16} /> {tc ? `Clock: ${timeControlById(tc).label}` : 'Untimed'} · change
           </button>
           {showTc && <TimeControlPicker value={tc} onChange={setTc} allowUntimed />}
         </div>
         <button className="btn-primary self-end !py-4 !text-base" onClick={go} data-testid="start-bot">
-          <Bot size={18} /> Play {BOTS.find((b) => b.id === botId)?.name}
+          <Ico src="/icons/bots.svg" size={22} /> Play {BOTS.find((b) => b.id === botId)?.name}
         </button>
       </div>
     </div>
@@ -313,11 +329,11 @@ function LocalTab() {
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1.5">
-            <span className="label">♔ White</span>
+            <span className="label flex items-center gap-1.5"><PieceIcon code="wK" /> White</span>
             <input className="input" value={w} maxLength={20} onChange={(e) => setW(e.target.value)} />
           </label>
           <label className="space-y-1.5">
-            <span className="label">♚ Black</span>
+            <span className="label flex items-center gap-1.5"><PieceIcon code="bK" /> Black</span>
             <input className="input" value={b} maxLength={20} onChange={(e) => setB(e.target.value)} />
           </label>
         </div>
@@ -334,7 +350,7 @@ function LocalTab() {
             navigate('/local');
           }}
         >
-          <Swords size={18} /> Start game
+          <Ico src="/icons/local.svg" size={22} /> Start game
         </button>
       </div>
     </div>
@@ -342,10 +358,10 @@ function LocalTab() {
 }
 
 const TABS = [
-  { value: 'online', label: 'Online', icon: Globe2 },
-  { value: 'friend', label: 'Friend', icon: Users },
-  { value: 'bot', label: 'Bots', icon: Bot },
-  { value: 'local', label: 'Pass & play', icon: Swords },
+  { value: 'online', label: 'Online', icon: '/icons/online.svg' },
+  { value: 'friend', label: 'Friend', icon: '/icons/friends.svg' },
+  { value: 'bot', label: 'Bots', icon: '/icons/bots.svg' },
+  { value: 'local', label: 'Pass & play', icon: '/icons/local.svg' },
 ] as const;
 
 export default function Play() {
@@ -356,7 +372,7 @@ export default function Play() {
 
   return (
     <PageShell>
-      <PageTitle eyebrow="Pull up a chair" title="Let’s play">
+      <PageTitle title="Play UNO Chess" icon="/icons/cards.svg">
         Choose how you’d like to play. Everything works as a guest — log in to play ranked.
       </PageTitle>
 
@@ -386,7 +402,7 @@ export default function Play() {
                 tab === t.value ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft hover:text-ink',
               )}
             >
-              <t.icon size={17} /> {t.label}
+              <Ico src={t.icon} size={20} /> {t.label}
             </button>
           ))}
         </div>

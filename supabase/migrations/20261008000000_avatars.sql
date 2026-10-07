@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════════
--- Avatars: every player gets a random DiceBear avatar, and avatar_url may
--- only point at the DiceBear API (no arbitrary images / tracking pixels).
---   https://api.dicebear.com/9.x/<style>/svg?seed=<seed>
+-- Avatars: every player gets a random DiceBear "adventurer" avatar, and
+-- avatar_url may only point at that API (no arbitrary images / tracking pixels).
+--   https://api.dicebear.com/9.x/adventurer/svg?seed=<seed>
 -- ════════════════════════════════════════════════════════════════════
 
 create or replace function public.random_avatar_url()
@@ -9,9 +9,7 @@ returns text
 language sql
 volatile
 as $$
-  select 'https://api.dicebear.com/9.x/'
-    || (array['thumbs','adventurer','big-smile','fun-emoji','lorelei','notionists','avataaars','bottts','croodles','pixel-art'])[1 + floor(random() * 10)::int]
-    || '/svg?seed='
+  select 'https://api.dicebear.com/9.x/adventurer/svg?seed='
     || substr(md5(random()::text || clock_timestamp()::text), 1, 12);
 $$;
 
@@ -19,12 +17,12 @@ $$;
 update public.profiles
 set avatar_url = public.random_avatar_url()
 where avatar_url is null
-   or avatar_url !~ '^https://api\.dicebear\.com/9\.x/[a-z-]+/svg\?seed=[A-Za-z0-9_-]{1,64}$';
+   or avatar_url !~ '^https://api\.dicebear\.com/9\.x/adventurer/svg\?seed=[A-Za-z0-9_-]{1,64}$';
 
 alter table public.profiles drop constraint if exists profiles_avatar_url_check;
 alter table public.profiles alter column avatar_url set default public.random_avatar_url();
 alter table public.profiles add constraint profiles_avatar_url_check
-  check (avatar_url ~ '^https://api\.dicebear\.com/9\.x/[a-z-]+/svg\?seed=[A-Za-z0-9_-]{1,64}$');
+  check (avatar_url ~ '^https://api\.dicebear\.com/9\.x/adventurer/svg\?seed=[A-Za-z0-9_-]{1,64}$');
 alter table public.profiles alter column avatar_url set not null;
 
 -- New sign-ups get a random avatar (ignore OAuth pictures).

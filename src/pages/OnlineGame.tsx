@@ -9,7 +9,7 @@ import { GameScreen } from '@/game/ui/GameScreen';
 import { CopyInvite } from '@/components/CopyInvite';
 import type { CreateOptions, PublicPlayer } from '@/net/protocol';
 import { useOnlineGame } from '@/net/useOnlineGame';
-import { Logo } from '@/components/Logo';
+import { LogoLink } from '@/components/Sidebar';
 
 function seatFrom(p: PublicPlayer | null, fallback: string): SeatInfo {
   if (!p) return { name: fallback, seed: fallback, subtitle: 'waiting…', connected: true };
@@ -107,7 +107,7 @@ export default function OnlineGame() {
           </>
         ) : (
           <>
-            <Spinner className="h-8 w-8 text-terracotta" />
+            <Spinner className="h-8 w-8 text-brand" />
             <p className="mt-4 font-bold text-ink-soft">{status === 'reconnecting' ? 'Reconnecting…' : 'Joining game…'}</p>
           </>
         )}
@@ -122,7 +122,7 @@ function CenterCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col items-center px-4">
       <div className="w-full max-w-6xl py-4">
-        <Logo small />
+        <LogoLink />
       </div>
       <div className="card-surface mt-[10vh] flex w-full max-w-lg flex-col items-center p-8 text-center">{children}</div>
     </div>

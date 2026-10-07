@@ -24,7 +24,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30
 function Loading() {
   return (
     <div className="grid min-h-dvh place-items-center">
-      <Spinner className="h-8 w-8 text-terracotta" />
+      <Spinner className="h-8 w-8 text-brand" />
     </div>
   );
 }

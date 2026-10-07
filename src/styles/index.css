@@ -4,8 +4,8 @@
 
 /* ─────────────────────────── design tokens ─────────────────────────── */
 @theme {
-  --font-display: 'Fraunces', ui-serif, Georgia, serif;
-  --font-sans: 'Nunito', ui-rounded, system-ui, sans-serif;
+  --font-display: 'Montserrat', system-ui, sans-serif;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   /* Semantic colours (switch with .dark) */
@@ -20,24 +20,25 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
 
-  /* Cozy UNO palette */
-  --color-terracotta: #d9734e;
+  /* Brand */
+  --color-brand: #e5483b;
+  --color-brand-deep: #a82b20;
+  --color-terracotta: #e2734e;
   --color-terracotta-deep: #b85a37;
-  --color-sage: #7a9e7e;
-  --color-sage-deep: #5c7d60;
-  --color-mustard: #e3b04b;
-  --color-mustard-deep: #c28f2c;
-  --color-dusk: #5b7fa6;
-  --color-dusk-deep: #436487;
-  --color-uno-red: #d64534;
-  --color-uno-yellow: #eec62f;
-  --color-uno-green: #2fa660;
-  --color-uno-blue: #2f6fd6;
+  --color-sage: #81b64c;
+  --color-sage-deep: #45753c;
+  --color-mustard: #f2b632;
+  --color-mustard-deep: #c78f15;
+  --color-dusk: #5d9bd6;
+  --color-dusk-deep: #3a6fa3;
+  --color-uno-red: #e0473a;
+  --color-uno-yellow: #f2c22c;
+  --color-uno-green: #3aa65a;
+  --color-uno-blue: #2f74d6;
 
   --radius-card: 0.6rem;
-  --shadow-soft: 0 1px 2px rgb(60 40 20 / 0.06), 0 6px 20px -6px rgb(60 40 20 / 0.18);
-  --shadow-lift: 0 2px 4px rgb(60 40 20 / 0.08), 0 16px 40px -12px rgb(60 40 20 / 0.35);
-  --shadow-inset: inset 0 1px 0 rgb(255 255 255 / 0.5);
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 14px -6px rgb(0 0 0 / 0.25);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.12), 0 16px 40px -12px rgb(0 0 0 / 0.45);
 
   --animate-float: float 6s ease-in-out infinite;
   --animate-wiggle: wiggle 0.6s ease-in-out;
@@ -53,44 +54,48 @@
     75% { transform: rotate(6deg); }
   }
   @keyframes pulse-ring {
-    0% { box-shadow: 0 0 0 0 rgb(217 115 78 / 0.55); }
-    100% { box-shadow: 0 0 0 14px rgb(217 115 78 / 0); }
+    0% { box-shadow: 0 0 0 0 rgb(229 72 59 / 0.6); }
+    100% { box-shadow: 0 0 0 14px rgb(229 72 59 / 0); }
   }
 }
 
 :root {
-  --bg: #f6efe3;
-  --bg-soft: #efe5d4;
-  --surface: #fffaf2;
-  --surface-2: #f3e9d9;
-  --ink: #2f2620;
-  --ink-soft: #6b5a4c;
-  --ink-faint: #a08d7b;
-  --line: #e2d4bf;
-  --accent: #d9734e;
-  --accent-ink: #fffaf2;
-  --board-light: #f0d9b5;
-  --board-dark: #b58863;
+  --bg: #f4f3f1;
+  --bg-soft: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #ebeae7;
+  --ink: #312e2b;
+  --ink-soft: #5d5a57;
+  --ink-faint: #8b8987;
+  --line: #dfdcd8;
+  --accent: #e5483b;
+  --accent-ink: #ffffff;
+  --btn-2: #e3e1de;
+  --btn-2-edge: #c9c6c2;
+  --board-light: #eeeed2;
+  --board-dark: #769656;
   color-scheme: light;
 }
 
 .dark {
-  --bg: #1d1713;
-  --bg-soft: #251d18;
-  --surface: #2b221c;
-  --surface-2: #342a22;
-  --ink: #f3e7d6;
-  --ink-soft: #c4b09b;
-  --ink-faint: #8a7663;
-  --line: #43362c;
-  --accent: #e8875f;
-  --accent-ink: #1d1713;
+  --bg: #302e2b;
+  --bg-soft: #262421;
+  --surface: #262522;
+  --surface-2: #3c3a37;
+  --ink: #ffffff;
+  --ink-soft: #c3c2c0;
+  --ink-faint: #8b8987;
+  --line: #45423e;
+  --accent: #e5483b;
+  --accent-ink: #ffffff;
+  --btn-2: #3c3a37;
+  --btn-2-edge: #22201e;
   color-scheme: dark;
 }
 
 /* Board themes */
-[data-board='walnut'] { --board-light: #f0d9b5; --board-dark: #b58863; }
 [data-board='sage'] { --board-light: #eeeed2; --board-dark: #769656; }
+[data-board='walnut'] { --board-light: #f0d9b5; --board-dark: #b58863; }
 [data-board='dusk'] { --board-light: #dee3e6; --board-dark: #8ca2ad; }
 [data-board='rose'] { --board-light: #f3e0dc; --board-dark: #c48b86; }
 [data-board='cocoa'] { --board-light: #e8d3b9; --board-dark: #8b6b52; }
@@ -103,23 +108,18 @@
   }
   body {
     @apply bg-bg text-ink font-sans antialiased;
-    background-image:
-      radial-gradient(1200px 600px at 10% -10%, rgb(227 176 75 / 0.12), transparent 60%),
-      radial-gradient(900px 500px at 110% 10%, rgb(122 158 126 / 0.12), transparent 60%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.15 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-attachment: fixed;
     min-height: 100dvh;
   }
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
-    font-variation-settings: 'SOFT' 100, 'opsz' 72;
-    letter-spacing: -0.01em;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
   ::selection {
-    background: rgb(217 115 78 / 0.3);
+    background: rgb(229 72 59 / 0.35);
   }
   :focus-visible {
-    outline: 3px solid rgb(217 115 78 / 0.6);
+    outline: 3px solid rgb(229 72 59 / 0.7);
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -129,45 +129,53 @@
 
 /* ─────────────────────────── components ─────────────────────────── */
 @utility card-surface {
-  @apply bg-surface border border-line rounded-2xl;
+  @apply bg-surface border border-line/60 rounded-xl;
   box-shadow: var(--shadow-soft);
 }
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-extrabold text-sm transition
-    active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 select-none whitespace-nowrap;
+  @apply inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 font-display font-bold text-sm transition
+    select-none whitespace-nowrap disabled:opacity-50;
+  &:active:not(:disabled) { transform: translateY(2px); }
 }
 @utility btn-primary {
-  @apply btn bg-accent text-accent-ink hover:brightness-105;
-  box-shadow: 0 2px 0 var(--color-terracotta-deep), 0 8px 18px -8px rgb(217 115 78 / 0.8);
+  @apply btn bg-accent text-accent-ink hover:brightness-110;
+  box-shadow: 0 4px 0 var(--color-brand-deep);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.2);
+  &:active:not(:disabled) { box-shadow: 0 2px 0 var(--color-brand-deep); }
 }
 @utility btn-secondary {
-  @apply btn bg-surface text-ink border border-line hover:bg-surface-2;
-  box-shadow: 0 2px 0 var(--line);
+  @apply btn text-ink hover:brightness-110;
+  background: var(--btn-2);
+  box-shadow: 0 4px 0 var(--btn-2-edge);
+  &:active:not(:disabled) { box-shadow: 0 2px 0 var(--btn-2-edge); }
 }
 @utility btn-ghost {
   @apply btn text-ink-soft hover:bg-surface-2 hover:text-ink;
 }
 @utility btn-sage {
-  @apply btn bg-sage text-white hover:brightness-105;
-  box-shadow: 0 2px 0 var(--color-sage-deep);
+  @apply btn bg-sage text-white hover:brightness-110;
+  box-shadow: 0 4px 0 var(--color-sage-deep);
 }
 @utility btn-dusk {
-  @apply btn bg-dusk text-white hover:brightness-105;
-  box-shadow: 0 2px 0 var(--color-dusk-deep);
+  @apply btn bg-dusk text-white hover:brightness-110;
+  box-shadow: 0 4px 0 var(--color-dusk-deep);
 }
 @utility btn-mustard {
-  @apply btn bg-mustard text-[#3b2a10] hover:brightness-105;
-  box-shadow: 0 2px 0 var(--color-mustard-deep);
+  @apply btn bg-mustard text-[#2b2006] hover:brightness-105;
+  box-shadow: 0 4px 0 var(--color-mustard-deep);
+}
+@utility btn-xl {
+  @apply rounded-xl px-8 py-5 text-2xl;
 }
 @utility chip {
-  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-extrabold;
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold;
 }
 @utility input {
-  @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-ink placeholder:text-ink-faint
-    outline-none focus:border-accent focus:ring-4 focus:ring-accent/15 transition;
+  @apply w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink placeholder:text-ink-faint
+    outline-none focus:border-accent focus:ring-4 focus:ring-accent/20 transition;
 }
 @utility label {
-  @apply text-xs font-extrabold uppercase tracking-wider text-ink-soft;
+  @apply text-xs font-bold uppercase tracking-wider text-ink-faint;
 }
 @utility kbd {
   @apply rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[0.7rem];

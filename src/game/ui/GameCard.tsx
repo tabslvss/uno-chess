@@ -85,7 +85,7 @@ export function GameCard({
         <span className="pointer-events-none absolute -inset-[3px] rounded-[11%] ring-[3px] ring-mustard/90 shadow-[0_0_18px_rgb(227_176_75/0.55)]" />
       )}
       {selected && (
-        <span className="pointer-events-none absolute -inset-[3px] rounded-[11%] ring-[3px] ring-terracotta shadow-[0_0_18px_rgb(217_115_78/0.6)]" />
+        <span className="pointer-events-none absolute -inset-[3px] rounded-[11%] ring-[3px] ring-brand shadow-[0_0_18px_rgb(217_115_78/0.6)]" />
       )}
       {discardMode && !selected && (
         <span className="pointer-events-none absolute -inset-[3px] rounded-[11%] border-2 border-dashed border-ink-soft/70" />

@@ -1,22 +1,40 @@
 import type { ReactNode } from 'react';
-import { Footer, Navbar } from './Navbar';
+import { Link } from 'react-router';
+import { cn } from '@/lib/cn';
+import { MobileBar, Sidebar } from './Sidebar';
 
-export function PageShell({ children, wide }: { children: ReactNode; wide?: boolean }) {
+export function PageShell({ children, wide, className }: { children: ReactNode; wide?: boolean; className?: string }) {
   return (
-    <div className="flex min-h-dvh flex-col">
-      <Navbar />
-      <main className={wide ? 'flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:py-12'}>{children}</main>
-      <Footer />
+    <div className="flex min-h-dvh">
+      <Sidebar className="hidden lg:flex" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <MobileBar />
+        <main className={cn(wide ? 'flex-1' : 'mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-8 sm:py-10', className)}>{children}</main>
+        <footer className="px-4 py-8 text-center text-xs text-ink-faint sm:px-8">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            <Link to="/rules" className="hover:text-ink">Rules</Link>
+            <Link to="/leaderboard" className="hover:text-ink">Leaderboard</Link>
+            <Link to="/settings" className="hover:text-ink">Settings</Link>
+            <a href="https://github.com/tabslvss/uno-chess" target="_blank" rel="noreferrer" className="hover:text-ink">GitHub</a>
+          </div>
+          <p className="mt-3">
+            Fan-made variant inspired by{' '}
+            <a className="underline" href="https://www.youtube.com/@TripleSGames" target="_blank" rel="noreferrer">TripleSGames</a>. Not affiliated with Mattel.
+          </p>
+        </footer>
+      </div>
     </div>
   );
 }
 
-export function PageTitle({ eyebrow, title, children }: { eyebrow?: string; title: ReactNode; children?: ReactNode }) {
+export function PageTitle({ title, children, icon }: { eyebrow?: string; title: ReactNode; children?: ReactNode; icon?: string }) {
   return (
-    <div className="mb-8">
-      {eyebrow && <p className="label mb-2 text-terracotta">{eyebrow}</p>}
-      <h1 className="font-display text-4xl font-bold sm:text-5xl">{title}</h1>
-      {children && <div className="mt-3 max-w-2xl text-lg text-ink-soft">{children}</div>}
+    <div className="mb-8 flex items-center gap-4">
+      {icon && <img src={icon} alt="" width={48} height={48} className="h-12 w-12" />}
+      <div>
+        <h1 className="text-3xl sm:text-4xl">{title}</h1>
+        {children && <div className="mt-1 text-ink-soft">{children}</div>}
+      </div>
     </div>
   );
 }

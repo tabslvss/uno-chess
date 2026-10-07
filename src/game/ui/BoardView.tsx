@@ -7,6 +7,7 @@ import { movableSquares, targetsFrom } from '@/game/engine';
 import type { Card, GameState, Move, PieceType, Side } from '@/game/types';
 import { useSettings } from '@/stores/settings';
 import { COLOR_HEX } from './cardArt';
+import { usePieceSet } from './usePieceSet';
 
 type Promo = Exclude<PieceType, 'P' | 'K'>;
 
@@ -27,6 +28,7 @@ function hexA(hex: string, a: number): string {
 
 export function BoardView({ state, orientation, interactive, previewCard, onMove }: BoardViewProps) {
   const settings = useSettings();
+  const pieces = usePieceSet();
   const [selected, setSelected] = useState<number | null>(null);
   const [promo, setPromo] = useState<{ from: number; to: number } | null>(null);
 
@@ -133,6 +135,7 @@ export function BoardView({ state, orientation, interactive, previewCard, onMove
       <Chessboard
         options={{
           id: 'unochess-board',
+          pieces,
           position: fen,
           boardOrientation: orientation === 'w' ? 'white' : 'black',
           squareStyles,

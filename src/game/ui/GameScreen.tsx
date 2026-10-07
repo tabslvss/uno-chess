@@ -35,6 +35,7 @@ import { Piles } from './Piles';
 import { PlayerStrip } from './PlayerStrip';
 import { MoveList, SidePanel } from './SidePanel';
 import { useElementSize } from './useElementSize';
+import { Sidebar } from '@/components/Sidebar';
 import { useGameFeedback } from './useGameFeedback';
 
 const HAND_CARD_W = 'clamp(50px, min(10.5dvh, 15.5vw), 108px)';
@@ -192,7 +193,9 @@ export function GameScreen({ c }: { c: GameController }) {
   );
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden" data-board={settings.board}>
+    <div className="flex h-dvh overflow-hidden" data-board={settings.board}>
+      <Sidebar compact className="hidden lg:flex" />
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* ── Top bar ── */}
       <header className="flex h-12 shrink-0 items-center gap-2 px-2 sm:px-4">
         <Tip content="Leave game">
@@ -200,7 +203,7 @@ export function GameScreen({ c }: { c: GameController }) {
             <ArrowLeft size={20} />
           </button>
         </Tip>
-        <Link to="/" className="hidden items-center gap-2 sm:flex">
+        <Link to="/" className="hidden items-center gap-2 sm:flex lg:hidden">
           <img src="/logo.svg" alt="" className="h-7 w-7" />
         </Link>
         <div className="min-w-0 flex-1 leading-tight">
@@ -505,6 +508,7 @@ export function GameScreen({ c }: { c: GameController }) {
           </div>
         </div>
       </Dialog>
+      </div>
     </div>
   );
 }
@@ -540,7 +544,7 @@ function RulesHint({ state }: { state: import('@/game/types').GameState }) {
       <p>
         <span className="font-extrabold text-ink">Win:</span> capture the king. No check rule!{' '}
         {state.noMoveStreak > 0 && (
-          <span className="font-bold text-terracotta">
+          <span className="font-bold text-brand">
             {6 - state.noMoveStreak} card{6 - state.noMoveStreak === 1 ? '' : 's'} without a move until a draw.
           </span>
         )}

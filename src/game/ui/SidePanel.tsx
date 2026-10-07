@@ -97,7 +97,7 @@ export function ChatBox({ chat, onSend, me }: { chat: ChatLine[]; onSend?: (i: n
         {chat.length === 0 && <p className="p-3 text-center text-sm text-ink-faint">Say hi with a quick message 👋</p>}
         {chat.map((c) => (
           <div key={c.id} className={cn('flex', c.side === me ? 'justify-end' : 'justify-start')}>
-            <div className={cn('max-w-[85%] rounded-2xl px-3 py-1.5 text-sm', c.side === me ? 'bg-terracotta text-white' : 'bg-surface-2')}>
+            <div className={cn('max-w-[85%] rounded-2xl px-3 py-1.5 text-sm', c.side === me ? 'bg-brand text-white' : 'bg-surface-2')}>
               {c.side !== me && <span className="mr-1 font-extrabold">{c.name}:</span>}
               {c.text}
             </div>
@@ -153,7 +153,7 @@ export function SidePanel({
       label: (
         <span className="flex items-center justify-center gap-1.5">
           <MessageCircle size={15} /> Chat
-          {unread.current > 0 && <span className="chip bg-terracotta px-1.5 text-white">{unread.current}</span>}
+          {unread.current > 0 && <span className="chip bg-brand px-1.5 text-white">{unread.current}</span>}
         </span>
       ),
       content: <ChatBox chat={chat} onSend={onChat} me={me} />,

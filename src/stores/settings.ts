@@ -24,8 +24,8 @@ export interface Settings {
 export const useSettings = create<Settings>()(
   persist(
     (set) => ({
-      theme: 'system',
-      board: 'walnut',
+      theme: 'dark',
+      board: 'sage',
       sound: true,
       volume: 0.7,
       showLegalMoves: true,
@@ -37,7 +37,19 @@ export const useSettings = create<Settings>()(
       confirmResign: true,
       set: (patch) => set(patch),
     }),
-    { name: 'unochess-settings', version: 1 },
+    {
+      name: 'unochess-settings',
+      version: 2,
+      // v2: dark theme + green board are the new defaults.
+      migrate: (persisted, version) => {
+        const s = persisted as Partial<Settings>;
+        if (version < 2) {
+          if (s.theme === 'system') s.theme = 'dark';
+          if (s.board === 'walnut') s.board = 'sage';
+        }
+        return s as Settings;
+      },
+    },
   ),
 );
 

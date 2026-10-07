@@ -75,7 +75,7 @@ export function PlayerStrip({ side, seat, active, clock, mine, handCount, uno, a
           url={seat.avatarUrl}
           name={seat.name}
           size={40}
-          ring={active ? 'var(--color-terracotta)' : undefined}
+          ring={active ? 'var(--color-brand)' : undefined}
           className="sm:!h-11 sm:!w-11"
         />
         <span
@@ -111,7 +111,7 @@ export function PlayerStrip({ side, seat, active, clock, mine, handCount, uno, a
         <div className="flex items-center gap-2 text-xs font-bold text-ink-soft">
           {seat.subtitle && <span>{seat.subtitle}</span>}
           {thinking && active && (
-            <span className="flex items-center gap-1 text-terracotta">
+            <span className="flex items-center gap-1 text-brand">
               thinking
               <span className="flex gap-0.5">
                 {[0, 1, 2].map((i) => (
@@ -125,7 +125,7 @@ export function PlayerStrip({ side, seat, active, clock, mine, handCount, uno, a
               </span>
             </span>
           )}
-          {!thinking && active && !mine && <span className="text-terracotta">to move</span>}
+          {!thinking && active && !mine && <span className="text-brand">to move</span>}
         </div>
       </div>
       {action}

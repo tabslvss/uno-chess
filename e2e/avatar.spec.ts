@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mockDiceBear } from './helpers';
 
-const DICEBEAR = /^https:\/\/api\.dicebear\.com\/9\.x\/[a-z-]+\/svg\?seed=[a-z0-9]+/;
+const DICEBEAR = /^https:\/\/api\.dicebear\.com\/9\.x\/adventurer\/svg\?seed=[a-z0-9]+/;
 
 test('guests get a random avatar that persists, and can pick, shuffle and randomize it', async ({ page }) => {
   await mockDiceBear(page);
@@ -24,7 +24,6 @@ test('guests get a random avatar that persists, and can pick, shuffle and random
   const picker = page.getByTestId('avatar-picker');
   await expect(picker).toBeVisible();
   await expect(picker.getByTestId('avatar-option')).toHaveCount(12);
-  await picker.getByTestId('avatar-style-bottts').click();
   await picker.getByTestId('avatar-shuffle').click();
   const optionsBefore = await picker.getByTestId('avatar-option').locator('img').first().getAttribute('src');
   await picker.getByTestId('avatar-more').click();
@@ -32,7 +31,7 @@ test('guests get a random avatar that persists, and can pick, shuffle and random
   await picker.getByTestId('avatar-option').nth(3).click();
   await picker.getByTestId('avatar-save').click();
   await expect(picker).toBeHidden();
-  await expect(avatarImg).toHaveAttribute('src', /\/bottts\/svg\?seed=/);
+  await expect(avatarImg).toHaveAttribute('src', /\/adventurer\/svg\?seed=/);
   expect(await avatarImg.getAttribute('src')).not.toBe(randomized);
 
   // The navbar shows the same avatar, and it's used in games.

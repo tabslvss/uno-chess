@@ -1,32 +1,22 @@
 /**
  * Player avatars from the public DiceBear API (https://www.dicebear.com).
  *
- * An avatar is stored as a canonical URL: `https://api.dicebear.com/9.x/<style>/svg?seed=<seed>`.
+ * An avatar is stored as a canonical URL: `https://api.dicebear.com/9.x/adventurer/svg?seed=<seed>`.
  * Only these URLs are accepted (client, game server and database all validate it),
  * so players can't point their avatar at arbitrary images.
  */
 
-export const AVATAR_STYLES = [
-  { id: 'thumbs', label: 'Thumbs' },
-  { id: 'adventurer', label: 'Adventurer' },
-  { id: 'big-smile', label: 'Big smile' },
-  { id: 'fun-emoji', label: 'Emoji' },
-  { id: 'lorelei', label: 'Lorelei' },
-  { id: 'notionists', label: 'Sketch' },
-  { id: 'avataaars', label: 'Cartoon' },
-  { id: 'bottts', label: 'Robots' },
-  { id: 'croodles', label: 'Doodles' },
-  { id: 'pixel-art', label: 'Pixel' },
-] as const;
+/** We use a single, consistent illustration style for every player. */
+export const AVATAR_STYLES = [{ id: 'adventurer', label: 'Adventurer' }] as const;
 
 export type AvatarStyle = (typeof AVATAR_STYLES)[number]['id'];
 
 const STYLE_IDS = new Set<string>(AVATAR_STYLES.map((s) => s.id));
 const BASE = 'https://api.dicebear.com/9.x';
-export const AVATAR_URL_RE = /^https:\/\/api\.dicebear\.com\/9\.x\/([a-z-]+)\/svg\?seed=([A-Za-z0-9_-]{1,64})$/;
+export const AVATAR_URL_RE = /^https:\/\/api\.dicebear\.com\/9\.x\/(adventurer)\/svg\?seed=([A-Za-z0-9_-]{1,64})$/;
 
-/** Cozy backgrounds applied when rendering (not stored). */
-const BACKGROUNDS = 'f0d9b5,e7f0dc,dfe8f5,f6dcd6,fbecd3,efe5d4';
+/** Soft backgrounds applied when rendering (not stored). */
+const BACKGROUNDS = 'e3e1de,d6e7c8,d3e3f2,f2d9d1,f1e3c4';
 
 export function avatarUrl(style: AvatarStyle, seed: string): string {
   return `${BASE}/${style}/svg?seed=${encodeURIComponent(seed)}`;
@@ -54,7 +44,7 @@ export function randomAvatar(style?: AvatarStyle): string {
 /** URL to put in an <img>: the stored avatar with display options, or a deterministic fallback for `seed`. */
 export function avatarSrc(seed: string, url?: string | null): string {
   const parsed = parseAvatar(url);
-  const base = parsed ? avatarUrl(parsed.style, parsed.seed) : avatarUrl('thumbs', seed.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || 'player');
+  const base = parsed ? avatarUrl(parsed.style, parsed.seed) : avatarUrl('adventurer', seed.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || 'player');
   return `${base}&radius=20&backgroundColor=${BACKGROUNDS}`;
 }
 

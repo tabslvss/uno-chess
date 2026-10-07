@@ -11,7 +11,7 @@ function Section({ n, title, children, art }: { n: number; title: string; childr
   return (
     <section className="card-surface grid gap-6 p-6 sm:p-8 md:grid-cols-[1fr_auto]" id={title.toLowerCase().replace(/\W+/g, '-')}>
       <div>
-        <span className="font-display text-sm font-bold text-terracotta">{String(n).padStart(2, '0')}</span>
+        <span className="font-display text-sm font-bold text-brand">{String(n).padStart(2, '0')}</span>
         <h2 className="font-display text-2xl font-bold sm:text-3xl">{title}</h2>
         <div className="prose-cozy mt-3 space-y-3 text-ink-soft [&_strong]:text-ink">{children}</div>
       </div>
@@ -58,7 +58,7 @@ function LineDemo() {
 export default function Rules() {
   return (
     <PageShell>
-      <PageTitle eyebrow="How to play" title="The rules of UNO Chess">
+      <PageTitle title="How to play UNO Chess" icon="/icons/rules.svg">
         Standard chess meets a slimmed-down UNO deck. Based on the variant by TripleSGames. Here’s everything you need — it takes two minutes.
       </PageTitle>
 

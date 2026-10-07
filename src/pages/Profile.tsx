@@ -12,6 +12,7 @@ import { cn } from '@/lib/cn';
 import { signed } from '@/lib/format';
 import { supabase, supabaseEnabled, type GameRow, type ProfileRow, type RatingRow } from '@/lib/supabase';
 import { useAuth } from '@/stores/auth';
+import { sampleProfile } from '@/lib/sampleLeaderboard';
 
 const REASONS: Record<string, string> = {
   kingCapture: 'king captured',
@@ -68,6 +69,9 @@ export default function Profile() {
     [history.data],
   );
 
+  const sample = sampleProfile(username);
+  if ((!supabaseEnabled || (!profile.isLoading && !profile.data)) && sample) return <SampleProfile p={sample} />;
+
   if (!supabaseEnabled) {
     return (
       <PageShell>
@@ -79,7 +83,7 @@ export default function Profile() {
     return (
       <PageShell>
         <div className="grid place-items-center p-20">
-          <Spinner className="h-8 w-8 text-terracotta" />
+          <Spinner className="h-8 w-8 text-brand" />
         </div>
       </PageShell>
     );
@@ -124,7 +128,7 @@ export default function Profile() {
             <button
               key={c}
               onClick={() => setCat(c)}
-              className={cn('card-surface p-5 text-left transition', cat === c && 'ring-2 ring-terracotta')}
+              className={cn('card-surface p-5 text-left transition', cat === c && 'ring-2 ring-brand')}
             >
               <div className="label capitalize">{c}</div>
               <div className="mt-1 font-display text-4xl font-bold">
@@ -202,6 +206,39 @@ export default function Profile() {
             })}
           </ul>
         )}
+      </div>
+    </PageShell>
+  );
+}
+
+function SampleProfile({ p }: { p: NonNullable<ReturnType<typeof sampleProfile>> }) {
+  return (
+    <PageShell>
+      <div className="card-surface flex flex-col items-center gap-6 p-6 sm:flex-row sm:p-8">
+        <Avatar seed={p.username} url={p.avatar_url} name={p.username} size={96} className="rounded-2xl" />
+        <div className="flex-1 text-center sm:text-left">
+          <h1 className="text-4xl">{p.username}</h1>
+        </div>
+      </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        {CATEGORIES.map((c) => {
+          const r = p.ratings[c];
+          return (
+            <div key={c} className="card-surface p-5">
+              <div className="label capitalize">{c}</div>
+              <div className="mt-1 font-display text-4xl font-bold">{r.rating}</div>
+              <div className="mt-1 text-sm text-ink-soft">
+                {r.games} games · {r.wins}W {r.draws}D {r.losses}L · peak {r.peak}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="card-surface mt-6 p-6 text-center text-ink-soft">
+        Think you can beat {p.username}?{' '}
+        <Link to="/play?tab=online" className="font-bold text-brand hover:underline">
+          Play ranked
+        </Link>
       </div>
     </PageShell>
   );

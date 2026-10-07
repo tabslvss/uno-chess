@@ -23,7 +23,13 @@ export function useLeaderboard(cat: TimeCategory, limit = 100) {
     queryFn: async (): Promise<LeaderboardRow[]> => {
       if (!supabaseEnabled) return sampleLeaderboard(cat).slice(0, limit);
       try {
-        const { data, error } = await supabase!.from('leaderboard').select('*').eq('category', cat).order('rank').limit(limit);
+        const { data, error } = await supabase!
+          .from('leaderboard')
+          .select('*')
+          .eq('category', cat)
+          .order('rank')
+          .limit(limit)
+          .abortSignal(AbortSignal.timeout(5000));
         if (error || !data?.length) return sampleLeaderboard(cat).slice(0, limit);
         return data as LeaderboardRow[];
       } catch {

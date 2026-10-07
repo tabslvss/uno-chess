@@ -33,3 +33,4 @@ playwright-report/
 .partykit/
 *.tsbuildinfo
 .env*
+!.env.example

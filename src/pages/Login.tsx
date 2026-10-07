@@ -6,7 +6,6 @@ import { EditableAvatar } from '@/components/AvatarPicker';
 import { PageShell } from '@/components/PageShell';
 import { Segmented, Spinner } from '@/components/ui';
 import { randomGuestName } from '@/lib/guest';
-import { supabaseEnabled } from '@/lib/supabase';
 import { useAuth, USERNAME_RE } from '@/stores/auth';
 
 function DiscordIcon() {
@@ -116,12 +115,17 @@ export default function Login() {
           <h1 className="font-display text-3xl font-bold">{tab === 'signin' ? 'Welcome back' : 'Create your account'}</h1>
           <p className="mt-1 text-ink-soft">Accounts unlock ranked games, ratings and your game history.</p>
 
-          {!supabaseEnabled ? (
+          {auth.accounts === 'checking' ? (
+            <div className="mt-6 flex justify-center p-8">
+              <Spinner className="h-6 w-6 text-brand" />
+            </div>
+          ) : auth.accounts !== 'online' ? (
             <div className="mt-6 rounded-2xl bg-mustard/15 p-5 text-sm">
-              <p className="font-extrabold">Accounts aren’t switched on yet.</p>
+              <p className="font-extrabold">
+                {auth.accounts === 'offline' ? 'Accounts are temporarily unavailable.' : 'Accounts aren’t switched on yet.'}
+              </p>
               <p className="mt-1 text-ink-soft">
-                This server is running in guest mode. Add <code className="kbd">VITE_SUPABASE_URL</code> and{' '}
-                <code className="kbd">VITE_SUPABASE_ANON_KEY</code> to enable sign-in. Meanwhile, you can play everything except ranked.
+                You can keep playing everything except ranked as a guest — bots, friends and casual games all work.
               </p>
             </div>
           ) : sent ? (

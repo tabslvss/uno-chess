@@ -8,7 +8,7 @@ import { Spinner } from '@/components/ui';
 import type { TimeCategory } from '@/game/rating';
 import { cn } from '@/lib/cn';
 import { sampleLeaderboard, type LeaderboardRow } from '@/lib/sampleLeaderboard';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
+import { supabase, supabaseHealth } from '@/lib/supabase';
 import { useAuth } from '@/stores/auth';
 
 const CATS: { id: TimeCategory; label: string; icon: AppIconName }[] = [
@@ -22,7 +22,7 @@ export function useLeaderboard(cat: TimeCategory, limit = 100) {
   return useQuery({
     queryKey: ['leaderboard', cat, limit],
     queryFn: async (): Promise<LeaderboardRow[]> => {
-      if (!supabaseEnabled) return sampleLeaderboard(cat).slice(0, limit);
+      if (!(await supabaseHealth) || !supabase) return sampleLeaderboard(cat).slice(0, limit);
       try {
         const { data, error } = await supabase!
           .from('leaderboard')

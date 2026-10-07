@@ -10,7 +10,7 @@ import { Segmented, Spinner } from '@/components/ui';
 import { CATEGORIES, PROVISIONAL_RD, type TimeCategory } from '@/game/rating';
 import { cn } from '@/lib/cn';
 import { signed } from '@/lib/format';
-import { supabase, supabaseEnabled, type GameRow, type ProfileRow, type RatingRow } from '@/lib/supabase';
+import { supabase, supabaseEnabled, supabaseHealth, type GameRow, type ProfileRow, type RatingRow } from '@/lib/supabase';
 import { useAuth } from '@/stores/auth';
 import { sampleProfile } from '@/lib/sampleLeaderboard';
 
@@ -33,6 +33,7 @@ export default function Profile() {
     queryKey: ['profile', username],
     enabled: supabaseEnabled && !!username,
     queryFn: async () => {
+      if (!(await supabaseHealth) || !supabase) return null;
       const { data: p } = await supabase!.from('profiles').select('*').eq('username', username).maybeSingle();
       if (!p) return null;
       const prof = p as ProfileRow;
@@ -70,9 +71,10 @@ export default function Profile() {
   );
 
   const sample = sampleProfile(username);
-  if ((!supabaseEnabled || (!profile.isLoading && !profile.data)) && sample) return <SampleProfile p={sample} />;
+  const accountsOnline = useAuth((s) => s.accounts === 'online');
+  if ((!accountsOnline || (!profile.isLoading && !profile.data)) && sample) return <SampleProfile p={sample} />;
 
-  if (!supabaseEnabled) {
+  if (!accountsOnline && !profile.isLoading) {
     return (
       <PageShell>
         <p className="card-surface p-10 text-center text-ink-soft">Profiles appear once accounts are enabled on this server.</p>

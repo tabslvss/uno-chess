@@ -14,10 +14,9 @@ import { cn } from '@/lib/cn';
 import { randomAvatar } from '@/lib/avatar';
 import { newRoomId, onlineEnabled } from '@/net/config';
 import { useLobby } from '@/net/useLobby';
-import { displayName, myAvatar, ratingFor, useAuth } from '@/stores/auth';
+import { displayName, myAvatar, ratingFor, useAccountsOnline, useAuth } from '@/stores/auth';
 import { Avatar } from '@/components/Avatar';
 import { useLocalGame } from '@/stores/localGame';
-import { supabaseEnabled } from '@/lib/supabase';
 
 const CAT_ICON: Record<TimeCategory, AppIconName> = { bullet: 'bullet', blitz: 'blitz', rapid: 'rapid' };
 
@@ -123,6 +122,7 @@ function OnlineTab() {
   }
 
   const ranked = mode === 'ranked';
+  const accountsOnline = useAccountsOnline();
   const locked = ranked && !auth.session;
 
   return (
@@ -162,7 +162,7 @@ function OnlineTab() {
         </div>
         {locked ? (
           <Link to="/login?next=/play" className="btn-primary mt-auto !py-3.5">
-            <Lock size={16} /> {supabaseEnabled ? 'Log in for ranked' : 'Ranked needs accounts'}
+            <Lock size={16} /> {accountsOnline ? 'Log in for ranked' : 'Ranked needs accounts'}
           </Link>
         ) : (
           <button className="btn-primary mt-auto !py-3.5 !text-base" onClick={() => lobby.join(mode, tc)} disabled={searching} data-testid="find-game">

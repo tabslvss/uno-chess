@@ -8,8 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { AvatarPicker, useRandomizeAvatar } from '@/components/AvatarPicker';
 import { Tip } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { supabaseEnabled } from '@/lib/supabase';
-import { displayName, myAvatar, useAuth } from '@/stores/auth';
+import { displayName, myAvatar, useAccountsOnline, useAuth } from '@/stores/auth';
 import { applyTheme, useSettings } from '@/stores/settings';
 
 const NAV: { to: string; label: string; icon: AppIconName }[] = [
@@ -76,6 +75,7 @@ function AccountArea({ compact }: { compact?: boolean }) {
   const [picker, setPicker] = useState(false);
   const name = displayName(auth);
   const signedIn = !!auth.session;
+  const accountsOnline = useAccountsOnline();
   const item = 'flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold outline-none data-[highlighted]:bg-surface-2';
 
   return (
@@ -128,7 +128,7 @@ function AccountArea({ compact }: { compact?: boolean }) {
           </Dropdown.Content>
         </Dropdown.Portal>
       </Dropdown.Root>
-      {!signedIn && supabaseEnabled && !compact && (
+      {!signedIn && accountsOnline && !compact && (
         <>
           <Link to="/login?mode=signup" className="btn-primary w-full">
             Sign Up

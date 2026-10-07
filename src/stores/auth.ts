@@ -3,10 +3,14 @@ import { create } from 'zustand';
 import { CATEGORIES, DEFAULT_RATING, type Rating, type TimeCategory } from '@/game/rating';
 import { isAvatarUrl, randomAvatar } from '@/lib/avatar';
 import { guestAvatar, guestId, guestName, setGuestAvatar, setGuestName } from '@/lib/guest';
-import { supabase, supabaseEnabled, type ProfileRow, type RatingRow } from '@/lib/supabase';
+import { supabase, supabaseEnabled, supabaseHealth, type ProfileRow, type RatingRow } from '@/lib/supabase';
+
+/** disabled = not configured · checking = startup health check · online · offline = configured but unreachable */
+export type AccountsStatus = 'disabled' | 'checking' | 'online' | 'offline';
 
 export interface AuthState {
   ready: boolean;
+  accounts: AccountsStatus;
   session: Session | null;
   profile: ProfileRow | null;
   ratings: Partial<Record<TimeCategory, RatingRow>>;
@@ -57,6 +61,7 @@ let initPromise: Promise<void> | null = null;
 
 export const useAuth = create<AuthState>((set, get) => ({
   ready: !supabaseEnabled,
+  accounts: supabaseEnabled ? 'checking' : 'disabled',
   session: null,
   profile: null,
   ratings: {},
@@ -66,7 +71,9 @@ export const useAuth = create<AuthState>((set, get) => ({
   init: () => {
     initPromise ??= (async () => {
       guestId();
-      if (!supabase) return set({ ready: true });
+      if (!supabaseEnabled) return set({ ready: true });
+      if (!(await supabaseHealth) || !supabase) return set({ ready: true, accounts: 'offline', session: null, profile: null, ratings: {} });
+      set({ accounts: 'online' });
       const { data } = await supabase.auth.getSession();
       set({ session: data.session });
       if (data.session) await get().refresh();
@@ -95,13 +102,13 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   signIn: async (email, password) => {
-    if (!supabase) return 'Accounts aren’t enabled on this server yet.';
+    if (!supabase || get().accounts !== 'online') return 'Accounts aren’t available right now.';
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     return error ? friendlyAuthError(error.message) : null;
   },
 
   signUp: async (email, password, username) => {
-    if (!supabase) return { error: 'Accounts aren’t enabled on this server yet.', needsConfirm: false };
+    if (!supabase || get().accounts !== 'online') return { error: 'Accounts aren’t available right now.', needsConfirm: false };
     if (!USERNAME_RE.test(username)) {
       return { error: 'Usernames are 3–20 letters, numbers, dots, dashes or underscores.', needsConfirm: false };
     }
@@ -117,7 +124,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   magicLink: async (email) => {
-    if (!supabase) return 'Accounts aren’t enabled on this server yet.';
+    if (!supabase || get().accounts !== 'online') return 'Accounts aren’t available right now.';
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: `${window.location.origin}/play` },
@@ -126,7 +133,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   oauth: async (provider) => {
-    if (!supabase) return 'Accounts aren’t enabled on this server yet.';
+    if (!supabase || get().accounts !== 'online') return 'Accounts aren’t available right now.';
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: `${window.location.origin}/play` },
@@ -135,7 +142,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   resetPassword: async (email) => {
-    if (!supabase) return 'Accounts aren’t enabled on this server yet.';
+    if (!supabase || get().accounts !== 'online') return 'Accounts aren’t available right now.';
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/settings`,
     });
@@ -171,9 +178,19 @@ export const useAuth = create<AuthState>((set, get) => ({
 
 /** Current access token for the game server (null for guests). */
 export async function accessToken(): Promise<string | null> {
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  if (!(await supabaseHealth) || !supabase) return null;
+  // Never hold up joining a game on auth: fall back to guest after 3 seconds.
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+  const token = supabase.auth
+    .getSession()
+    .then(({ data }) => data.session?.access_token ?? null)
+    .catch(() => null);
+  return Promise.race([token, timeout]);
+}
+
+/** True when sign-in and accounts actually work right now. */
+export function useAccountsOnline(): boolean {
+  return useAuth((s) => s.accounts === 'online');
 }
 
 /** The avatar the current player shows (profile avatar when logged in, otherwise the guest one). */

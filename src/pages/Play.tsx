@@ -9,9 +9,11 @@ import { BOTS } from '@/game/ai/bots';
 import { formatRating, previewDeltas, TIME_CONTROLS, timeControlById, type TimeCategory } from '@/game/rating';
 import type { Side } from '@/game/types';
 import { cn } from '@/lib/cn';
+import { randomAvatar } from '@/lib/avatar';
 import { newRoomId, onlineEnabled } from '@/net/config';
 import { useLobby } from '@/net/useLobby';
-import { displayName, ratingFor, useAuth } from '@/stores/auth';
+import { displayName, myAvatar, ratingFor, useAuth } from '@/stores/auth';
+import { Avatar } from '@/components/Avatar';
 import { useLocalGame } from '@/stores/localGame';
 import { supabaseEnabled } from '@/lib/supabase';
 
@@ -132,7 +134,10 @@ function OnlineTab() {
       <div className="flex flex-col gap-4 rounded-2xl bg-surface-2 p-5">
         <div>
           <div className="label">{ranked ? `Your ${control.category} rating` : 'Playing as'}</div>
-          <div className="font-display text-3xl font-bold">{ranked && auth.session ? formatRating(myRating) : displayName(auth)}</div>
+          <div className="mt-1 flex items-center gap-3">
+            <Avatar seed={displayName(auth)} url={myAvatar(auth)} name={displayName(auth)} size={44} />
+            <div className="min-w-0 truncate font-display text-3xl font-bold">{ranked && auth.session ? formatRating(myRating) : displayName(auth)}</div>
+          </div>
           {ranked && auth.session && (
             <p className="mt-1 text-sm text-ink-soft">
               Even game: <span className="font-bold text-sage-deep dark:text-sage">+{win}</span> /{' '}
@@ -325,7 +330,7 @@ function LocalTab() {
           className="btn-primary mt-auto !py-3.5"
           data-testid="start-local"
           onClick={() => {
-            start({ mode: 'local', tc, names: { w: w.trim() || 'White', b: b.trim() || 'Black' } });
+            start({ mode: 'local', tc, names: { w: w.trim() || 'White', b: b.trim() || 'Black' }, avatars: { w: randomAvatar(), b: randomAvatar() } });
             navigate('/local');
           }}
         >

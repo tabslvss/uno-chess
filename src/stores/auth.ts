@@ -1,7 +1,8 @@
 import type { Provider, Session } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { CATEGORIES, DEFAULT_RATING, type Rating, type TimeCategory } from '@/game/rating';
-import { guestId, guestName, setGuestName } from '@/lib/guest';
+import { isAvatarUrl, randomAvatar } from '@/lib/avatar';
+import { guestAvatar, guestId, guestName, setGuestAvatar, setGuestName } from '@/lib/guest';
 import { supabase, supabaseEnabled, type ProfileRow, type RatingRow } from '@/lib/supabase';
 
 export interface AuthState {
@@ -10,6 +11,7 @@ export interface AuthState {
   profile: ProfileRow | null;
   ratings: Partial<Record<TimeCategory, RatingRow>>;
   guestName: string;
+  guestAvatar: string;
   init: () => Promise<void>;
   refresh: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
@@ -20,6 +22,8 @@ export interface AuthState {
   signOut: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<ProfileRow, 'username' | 'bio' | 'avatar_url' | 'country'>>) => Promise<string | null>;
   renameGuest: (name: string) => void;
+  /** Change the current player's avatar (saved to the profile when logged in). */
+  setAvatar: (url: string) => Promise<string | null>;
 }
 
 export const USERNAME_RE = /^[A-Za-z0-9_.-]{3,20}$/;
@@ -57,6 +61,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   profile: null,
   ratings: {},
   guestName: guestName(),
+  guestAvatar: guestAvatar(),
 
   init: () => {
     initPromise ??= (async () => {
@@ -81,6 +86,12 @@ export const useAuth = create<AuthState>((set, get) => ({
     if (!uid) return;
     const { profile, ratings } = await fetchProfile(uid);
     set({ profile, ratings });
+    // Everyone gets a random avatar automatically (older accounts / OAuth pictures included).
+    if (profile && !isAvatarUrl(profile.avatar_url) && supabase) {
+      const url = randomAvatar();
+      const { error } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', uid);
+      if (!error) set({ profile: { ...profile, avatar_url: url } });
+    }
   },
 
   signIn: async (email, password) => {
@@ -149,6 +160,13 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   renameGuest: (name) => set({ guestName: setGuestName(name) }),
+
+  setAvatar: async (url) => {
+    if (!isAvatarUrl(url)) return 'That avatar isn’t valid.';
+    if (get().session) return get().updateProfile({ avatar_url: url });
+    set({ guestAvatar: setGuestAvatar(url) });
+    return null;
+  },
 }));
 
 /** Current access token for the game server (null for guests). */
@@ -156,6 +174,11 @@ export async function accessToken(): Promise<string | null> {
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
+}
+
+/** The avatar the current player shows (profile avatar when logged in, otherwise the guest one). */
+export function myAvatar(state: Pick<AuthState, 'profile' | 'guestAvatar'>): string {
+  return isAvatarUrl(state.profile?.avatar_url) ? state.profile!.avatar_url! : state.guestAvatar;
 }
 
 export function displayName(state: Pick<AuthState, 'profile' | 'guestName'>): string {

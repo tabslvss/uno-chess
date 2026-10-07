@@ -1,6 +1,6 @@
 {
   "name": "uno-chess",
-  "description": "UNO Chess \u2014 the cozy mash-up of UNO and chess. Bots, friends, casual & ranked online play.",
+  "description": "UNO Chess — the cozy mash-up of UNO and chess. Bots, friends, casual & ranked online play.",
   "private": true,
   "version": "2.0.0",
   "type": "module",
@@ -19,6 +19,8 @@
     "db:push": "npx supabase db push"
   },
   "devDependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",

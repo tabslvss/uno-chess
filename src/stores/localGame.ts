@@ -12,6 +12,8 @@ export interface LocalSetup {
   /** Time control id, or null for an untimed game. */
   tc: string | null;
   names?: { w: string; b: string };
+  /** Random avatars for pass & play players. */
+  avatars?: { w: string; b: string };
 }
 
 export interface LocalClock {

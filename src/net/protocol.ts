@@ -28,6 +28,8 @@ export const authSchema = z.object({
   /** Random per-browser secret identifying a guest. Never broadcast. */
   guestId: z.string().min(8).max(64),
   guestName: z.string().max(32).optional(),
+  /** DiceBear avatar URL chosen by the guest (validated server-side). */
+  guestAvatar: z.string().max(200).optional(),
 });
 export type AuthPayload = z.infer<typeof authSchema>;
 

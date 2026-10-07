@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { EditableAvatar } from '@/components/AvatarPicker';
 import { PageShell, PageTitle } from '@/components/PageShell';
 import { Segmented, Switch } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -32,7 +33,10 @@ function AccountSection() {
   const [guest, setGuest] = useState(auth.guestName);
   if (!auth.session) {
     return (
-      <Section title="Guest name">
+      <Section title="Guest profile">
+        <div className="mb-4">
+          <EditableAvatar />
+        </div>
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -49,6 +53,9 @@ function AccountSection() {
   }
   return (
     <Section title="Profile">
+      <div className="mb-4">
+        <EditableAvatar />
+      </div>
       <form
         className="space-y-3"
         onSubmit={async (e) => {

@@ -34,8 +34,8 @@ export default function LocalGame() {
       me: state.turn,
       orientation: flip ? (state.result ? 'w' : state.turn) : 'w',
       seats: {
-        w: { name: names.w, seed: `local-w-${names.w}`, subtitle: 'White' },
-        b: { name: names.b, seed: `local-b-${names.b}`, subtitle: 'Black' },
+        w: { name: names.w, seed: `local-w-${names.w}`, avatarUrl: setup.avatars?.w, subtitle: 'White' },
+        b: { name: names.b, seed: `local-b-${names.b}`, avatarUrl: setup.avatars?.b, subtitle: 'Black' },
       },
       clock,
       act: (a) => {
@@ -45,7 +45,12 @@ export default function LocalGame() {
       resign: () => act(state.turn, { type: 'resign' }),
       title: 'Pass & play',
       subtitle: tc ? `${tc.label}` : 'Untimed',
-      newGame: () => start({ ...setup, names: { w: names.b, b: names.w } }),
+      newGame: () =>
+        start({
+          ...setup,
+          names: { w: names.b, b: names.w },
+          avatars: setup.avatars ? { w: setup.avatars.b, b: setup.avatars.w } : undefined,
+        }),
       concealed,
       reveal: () => setRevealed(state.turn),
     };

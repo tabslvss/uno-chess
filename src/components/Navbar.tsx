@@ -1,13 +1,14 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
-import { LogIn, LogOut, Menu, Moon, Settings, Sun, Trophy, User, X } from 'lucide-react';
+import { Dices, LogIn, LogOut, Menu, Moon, Smile, Settings, Sun, Trophy, User, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { Avatar } from '@/components/Avatar';
+import { AvatarPicker, useRandomizeAvatar } from '@/components/AvatarPicker';
 import { Logo } from '@/components/Logo';
 import { cn } from '@/lib/cn';
 import { supabaseEnabled } from '@/lib/supabase';
-import { displayName, useAuth } from '@/stores/auth';
+import { displayName, myAvatar, useAuth } from '@/stores/auth';
 import { applyTheme, useSettings } from '@/stores/settings';
 
 const links = [
@@ -38,53 +39,67 @@ export function ThemeToggle() {
   );
 }
 
+const itemCls =
+  'flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold outline-none data-[highlighted]:bg-surface-2';
+
 function UserMenu() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const randomize = useRandomizeAvatar();
+  const [picker, setPicker] = useState(false);
   const name = displayName(auth);
-  if (!auth.session) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="hidden text-sm font-bold text-ink-soft md:inline">
-          Playing as <span className="text-ink">{name}</span>
-        </span>
-        <Link to="/login" className="btn-primary !py-2">
-          <LogIn size={16} /> {supabaseEnabled ? 'Log in' : 'Guest'}
-        </Link>
-      </div>
-    );
-  }
+  const signedIn = !!auth.session;
   return (
-    <Dropdown.Root>
-      <Dropdown.Trigger className="flex items-center gap-2 rounded-xl p-1 pr-2 transition hover:bg-surface-2" aria-label="Account menu">
-        <Avatar seed={auth.profile?.id ?? name} url={auth.profile?.avatar_url} name={name} size={32} />
-        <span className="hidden font-extrabold sm:inline">{name}</span>
-      </Dropdown.Trigger>
-      <Dropdown.Portal>
-        <Dropdown.Content align="end" sideOffset={8} className="card-surface z-50 min-w-48 p-1.5">
-          {[
-            { icon: User, label: 'Profile', to: `/u/${auth.profile?.username ?? ''}` },
-            { icon: Trophy, label: 'Leaderboard', to: '/leaderboard' },
-            { icon: Settings, label: 'Settings', to: '/settings' },
-          ].map((it) => (
-            <Dropdown.Item
-              key={it.label}
-              onSelect={() => navigate(it.to)}
-              className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold outline-none data-[highlighted]:bg-surface-2"
-            >
-              <it.icon size={16} /> {it.label}
+    <>
+      <Dropdown.Root>
+        <Dropdown.Trigger className="flex items-center gap-2 rounded-xl p-1 pr-2 transition hover:bg-surface-2" aria-label="Account menu" data-testid="account-menu">
+          <Avatar seed={name} url={myAvatar(auth)} name={name} size={32} />
+          <span className="hidden font-extrabold sm:inline">{name}</span>
+          {!signedIn && <span className="chip hidden bg-surface-2 text-ink-faint lg:inline-flex">guest</span>}
+        </Dropdown.Trigger>
+        <Dropdown.Portal>
+          <Dropdown.Content align="end" sideOffset={8} className="card-surface z-50 min-w-52 p-1.5">
+            <Dropdown.Item onSelect={() => setPicker(true)} className={itemCls} data-testid="menu-change-avatar">
+              <Smile size={16} /> Change avatar
             </Dropdown.Item>
-          ))}
-          <Dropdown.Separator className="my-1 h-px bg-line" />
-          <Dropdown.Item
-            onSelect={() => void auth.signOut()}
-            className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-uno-red outline-none data-[highlighted]:bg-uno-red/10"
-          >
-            <LogOut size={16} /> Sign out
-          </Dropdown.Item>
-        </Dropdown.Content>
-      </Dropdown.Portal>
-    </Dropdown.Root>
+            <Dropdown.Item onSelect={(e) => { e.preventDefault(); void randomize(); }} className={itemCls} data-testid="menu-randomize-avatar">
+              <Dices size={16} /> Randomize avatar
+            </Dropdown.Item>
+            <Dropdown.Separator className="my-1 h-px bg-line" />
+            {signedIn && (
+              <Dropdown.Item onSelect={() => navigate(`/u/${auth.profile?.username ?? ''}`)} className={itemCls}>
+                <User size={16} /> Profile
+              </Dropdown.Item>
+            )}
+            <Dropdown.Item onSelect={() => navigate('/leaderboard')} className={itemCls}>
+              <Trophy size={16} /> Leaderboard
+            </Dropdown.Item>
+            <Dropdown.Item onSelect={() => navigate('/settings')} className={itemCls}>
+              <Settings size={16} /> Settings
+            </Dropdown.Item>
+            <Dropdown.Separator className="my-1 h-px bg-line" />
+            {signedIn ? (
+              <Dropdown.Item
+                onSelect={() => void auth.signOut()}
+                className={itemCls + ' text-uno-red data-[highlighted]:bg-uno-red/10'}
+              >
+                <LogOut size={16} /> Sign out
+              </Dropdown.Item>
+            ) : (
+              <Dropdown.Item onSelect={() => navigate('/login')} className={itemCls}>
+                <LogIn size={16} /> {supabaseEnabled ? 'Log in / sign up' : 'Guest settings'}
+              </Dropdown.Item>
+            )}
+          </Dropdown.Content>
+        </Dropdown.Portal>
+      </Dropdown.Root>
+      {!signedIn && supabaseEnabled && (
+        <Link to="/login" className="btn-primary hidden !py-2 sm:inline-flex">
+          <LogIn size={16} /> Log in
+        </Link>
+      )}
+      <AvatarPicker open={picker} onOpenChange={setPicker} />
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { avatarFor } from '@/lib/avatar';
+import { avatarSrc, isLocalAvatar } from '@/lib/avatar';
 import { cn } from '@/lib/cn';
 
 export function Avatar({
@@ -17,8 +17,9 @@ export function Avatar({
   className?: string;
   ring?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const src = avatarFor(seed, url);
+  const src = isLocalAvatar(url) ? url! : avatarSrc(seed, url);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === src;
   return (
     <span
       className={cn('relative inline-grid shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2', className)}
@@ -29,7 +30,9 @@ export function Avatar({
           {name.slice(0, 1).toUpperCase()}
         </span>
       ) : (
-        <img src={src} alt="" width={size} height={size} className="h-full w-full object-cover" onError={() => setFailed(true)} />
+        <img src={src} alt="" width={size} height={size} className="h-full w-full object-cover" onError={() => setFailedSrc(src)}
+          loading="lazy"
+          decoding="async" />
       )}
     </span>
   );

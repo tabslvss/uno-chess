@@ -32,7 +32,7 @@ export function useLobby(onMatched: (gameId: string) => void) {
       socket.send(
         JSON.stringify({
           t: 'hello',
-          auth: { token: token ?? undefined, guestId: guestId(), guestName: useAuth.getState().guestName },
+          auth: { token: token ?? undefined, guestId: guestId(), guestName: useAuth.getState().guestName, guestAvatar: useAuth.getState().guestAvatar },
         } satisfies LobbyClientMessage),
       );
     });

@@ -36,6 +36,7 @@ jump into casual matchmaking, or climb the ranked ladder with chess.com-style Gl
 - A game screen that **always fits your screen** — board, both players, piles and your whole hand are visible without scrolling on laptops and phones.
 - Hover a card to preview the file & rank it unlocks; legal-move dots; drag or click to move; promotion picker; keyboard shortcuts (`1–9` play cards, `U` UNO, `F` flip).
 - Sounds, confetti, smooth card & piece animations, light/dark themes and five board colours.
+- **Avatars** from the [DiceBear](https://www.dicebear.com) API: everyone gets a random one automatically, can browse 10 styles in a picker, shuffle endlessly, or hit *Randomize* any time. Only DiceBear URLs are accepted (validated in the browser, on the game server and by a database constraint).
 
 **Modes**
 | Mode | Account | Notes |
@@ -195,4 +196,4 @@ Set the server secrets with `npx partykit env add <NAME>`: `PARTY_SECRET` (any l
 
 - Game design: **UNO Chess** by [TripleSGames](https://www.youtube.com/@TripleSGames). This is a fan project and is not affiliated with Mattel or UNO®.
 - Chess sound effects from the original project; card and UNO sounds synthesized for this project.
-- Avatars for players by [DiceBear](https://www.dicebear.com) (Thumbs style); bot characters drawn for this project.
+- Player avatars by the [DiceBear](https://www.dicebear.com) API (various styles and licences — see their site); bot characters drawn for this project.

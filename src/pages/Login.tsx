@@ -2,7 +2,7 @@ import { KeyRound, Mail, Sparkles, UserRound } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
-import { Avatar } from '@/components/Avatar';
+import { EditableAvatar } from '@/components/AvatarPicker';
 import { PageShell } from '@/components/PageShell';
 import { Segmented, Spinner } from '@/components/ui';
 import { randomGuestName } from '@/lib/guest';
@@ -39,12 +39,10 @@ function GuestCard() {
   const navigate = useNavigate();
   return (
     <div className="card-surface p-6">
-      <div className="flex items-center gap-3">
-        <Avatar seed={guestName} name={guestName} size={48} />
-        <div>
-          <h2 className="font-display text-xl font-bold">Play as a guest</h2>
-          <p className="text-sm text-ink-soft">Bots, friends and casual games — no account needed.</p>
-        </div>
+      <h2 className="font-display text-xl font-bold">Play as a guest</h2>
+      <p className="text-sm text-ink-soft">Bots, friends and casual games — no account needed.</p>
+      <div className="mt-4">
+        <EditableAvatar size={64} />
       </div>
       <form
         className="mt-4 flex gap-2"

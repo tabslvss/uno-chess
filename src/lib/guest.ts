@@ -1,5 +1,8 @@
 const ID_KEY = 'unochess-guest-id';
 const NAME_KEY = 'unochess-guest-name';
+const AVATAR_KEY = 'unochess-guest-avatar';
+
+import { isAvatarUrl, randomAvatar } from './avatar';
 
 const ADJ = ['Cozy', 'Sleepy', 'Lucky', 'Brave', 'Witty', 'Mellow', 'Sunny', 'Quiet', 'Clever', 'Merry', 'Snug', 'Plucky'];
 const NOUN = ['Rook', 'Knight', 'Bishop', 'Pawn', 'Queen', 'Joker', 'Wildcard', 'Teacup', 'Biscuit', 'Fox', 'Otter', 'Owl'];
@@ -50,4 +53,19 @@ export function setGuestName(name: string): string {
   const finalName = cleaned.length >= 2 ? cleaned : guestName();
   safeSet(NAME_KEY, finalName);
   return finalName;
+}
+
+/** Guests get a random avatar on their first visit; it sticks until they change it. */
+export function guestAvatar(): string {
+  const existing = safeGet(AVATAR_KEY);
+  if (isAvatarUrl(existing)) return existing;
+  const url = randomAvatar();
+  safeSet(AVATAR_KEY, url);
+  return url;
+}
+
+export function setGuestAvatar(url: string): string {
+  if (!isAvatarUrl(url)) return guestAvatar();
+  safeSet(AVATAR_KEY, url);
+  return url;
 }

@@ -1,4 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { isAvatarUrl } from '../src/lib/avatar.ts';
 import type { AuthPayload } from '../src/net/protocol.ts';
 import type { Identity } from './gameRoom.ts';
 import { loadProfile } from './db.ts';
@@ -50,6 +51,7 @@ export async function resolveIdentity(env: ServerEnv, auth: AuthPayload): Promis
     name: sanitizeName(auth.guestName, `Guest-${parseInt(guestHash.slice(0, 4), 16) % 10000}`),
     guest: true,
     userId: null,
+    avatarUrl: isAvatarUrl(auth.guestAvatar) ? auth.guestAvatar : null,
     ratings: {},
   };
   if (!auth.token) return { identity: guest };
@@ -63,7 +65,7 @@ export async function resolveIdentity(env: ServerEnv, auth: AuthPayload): Promis
       name: profile?.username ?? sanitizeName(claims.email?.split('@')[0], 'Player'),
       guest: false,
       userId: claims.sub,
-      avatarUrl: profile?.avatarUrl ?? null,
+      avatarUrl: isAvatarUrl(profile?.avatarUrl) ? profile!.avatarUrl : null,
       ratings: profile?.ratings ?? {},
     },
   };

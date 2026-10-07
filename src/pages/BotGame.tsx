@@ -10,7 +10,7 @@ import type { GameAction } from '@/game/types';
 import type { GameController } from '@/game/ui/controller';
 import { GameScreen } from '@/game/ui/GameScreen';
 import { useLocalClock } from '@/game/ui/useLocalClock';
-import { displayName, useAuth } from '@/stores/auth';
+import { displayName, myAvatar, useAuth } from '@/stores/auth';
 import { useLocalGame } from '@/stores/localGame';
 
 export default function BotGame() {
@@ -48,7 +48,7 @@ export default function BotGame() {
     if (!state || !setup) return null;
     const tc = setup.tc ? timeControlById(setup.tc) : null;
     const name = displayName(auth);
-    const humanSeat = { name, seed: auth.profile?.id ?? name, avatarUrl: auth.profile?.avatar_url, subtitle: 'You' };
+    const humanSeat = { name, seed: name, avatarUrl: myAvatar(auth), subtitle: 'You' };
     const botSeat = { name: bot.name, seed: bot.id, avatarUrl: bot.avatar, subtitle: `Bot · ~${bot.rating}`, isBot: true };
     return {
       mode: 'bot',

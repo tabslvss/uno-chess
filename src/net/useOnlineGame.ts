@@ -44,7 +44,7 @@ export function useOnlineGame(gameId: string, create?: CreateOptions) {
       const token = await accessToken();
       const msg: GameClientMessage = {
         t: 'hello',
-        auth: { token: token ?? undefined, guestId: guestId(), guestName: useAuth.getState().guestName },
+        auth: { token: token ?? undefined, guestId: guestId(), guestName: useAuth.getState().guestName, guestAvatar: useAuth.getState().guestAvatar },
         create: createRef.current,
       };
       socket.send(JSON.stringify(msg));

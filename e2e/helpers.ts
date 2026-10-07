@@ -41,3 +41,24 @@ export async function takeTurn(page: Page): Promise<void> {
     }
   }
 }
+
+/**
+ * Serve DiceBear avatars locally (same library the API uses) so tests don't
+ * depend on the network.
+ */
+export async function mockDiceBear(page: Page): Promise<void> {
+  const { createAvatar } = await import('@dicebear/core');
+  const collection = (await import('@dicebear/collection')) as unknown as Record<string, Parameters<typeof createAvatar>[0]>;
+  await page.route('https://api.dicebear.com/**', async (route) => {
+    const url = new URL(route.request().url());
+    const styleId = url.pathname.split('/')[2] ?? 'thumbs';
+    const camel = styleId.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const style = collection[camel] ?? collection.thumbs!;
+    const svg = createAvatar(style, {
+      seed: url.searchParams.get('seed') ?? 'x',
+      radius: Number(url.searchParams.get('radius') ?? 0),
+      backgroundColor: url.searchParams.get('backgroundColor')?.split(',') ?? [],
+    }).toString();
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: svg });
+  });
+}

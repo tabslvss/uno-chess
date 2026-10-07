@@ -1,3 +1,4 @@
+import { AppIcon, type AppIconName } from '@/components/AppIcon';
 import { Link2, Lock } from 'lucide-react';
 import { defaultPieces } from 'react-chessboard';
 import { motion } from 'motion/react';
@@ -19,10 +20,10 @@ import { OptionalImg } from '@/components/OptionalImg';
 import { useLocalGame } from '@/stores/localGame';
 import { supabaseEnabled } from '@/lib/supabase';
 
-const CAT_ICON: Record<TimeCategory, string> = { bullet: '/icons/bullet.svg', blitz: '/icons/blitz.svg', rapid: '/icons/rapid.svg' };
+const CAT_ICON: Record<TimeCategory, AppIconName> = { bullet: 'bullet', blitz: 'blitz', rapid: 'rapid' };
 
-function Ico({ src, size = 18 }: { src: string; size?: number }) {
-  return <img src={src} alt="" width={size} height={size} className="shrink-0" />;
+function Ico({ src, size = 18 }: { src: AppIconName; size?: number }) {
+  return <AppIcon name={src} size={size} />;
 }
 
 function PieceIcon({ code }: { code: 'wK' | 'bK' }) {
@@ -72,7 +73,7 @@ function TimeControlPicker({ value, onChange, allowUntimed }: { value: string | 
             value === null ? 'border-brand bg-brand/15 text-ink' : 'border-line bg-surface hover:bg-surface-2',
           )}
         >
-          <span className="inline-flex items-center gap-2"><Ico src="/icons/untimed.svg" /> Untimed</span>
+          <span className="inline-flex items-center gap-2"><Ico src="untimed" /> Untimed</span>
         </button>
       )}
     </div>
@@ -115,7 +116,7 @@ function OnlineTab() {
   if (!onlineEnabled()) {
     return (
       <div className="rounded-2xl bg-surface-2 p-6 text-center">
-        <img src="/icons/online.svg" alt="" width={36} height={36} className="mx-auto" />
+        <AppIcon name="online" size={36} />
         <p className="mt-2 font-bold">Online play isn’t configured on this deployment yet.</p>
         <p className="text-sm text-ink-soft">Set VITE_PARTYKIT_HOST to your PartyKit server. Bots and pass & play work offline!</p>
       </div>
@@ -132,8 +133,8 @@ function OnlineTab() {
           value={mode}
           onChange={setMode}
           options={[
-            { value: 'casual', label: <span className="flex items-center justify-center gap-1.5"><Ico src="/icons/online.svg" /> Casual</span> },
-            { value: 'ranked', label: <span className="flex items-center justify-center gap-1.5"><Ico src="/icons/ranked.svg" /> Ranked</span> },
+            { value: 'casual', label: <span className="flex items-center justify-center gap-1.5"><Ico src="online" /> Casual</span> },
+            { value: 'ranked', label: <span className="flex items-center justify-center gap-1.5"><Ico src="ranked" /> Ranked</span> },
           ]}
         />
         <TimeControlPicker
@@ -306,12 +307,12 @@ function BotTab() {
           <div className="label">I play as</div>
           <ColorPicker value={color} onChange={setColor} />
           <button className="btn-ghost !px-0 text-sm" onClick={() => setShowTc((s) => !s)}>
-            <Ico src="/icons/rapid.svg" size={16} /> {tc ? `Clock: ${timeControlById(tc).label}` : 'Untimed'} · change
+            <Ico src="rapid" size={16} /> {tc ? `Clock: ${timeControlById(tc).label}` : 'Untimed'} · change
           </button>
           {showTc && <TimeControlPicker value={tc} onChange={setTc} allowUntimed />}
         </div>
         <button className="btn-primary self-end !py-4 !text-base" onClick={go} data-testid="start-bot">
-          <Ico src="/icons/bots.svg" size={22} /> Play {BOTS.find((b) => b.id === botId)?.name}
+          <Ico src="bots" size={22} /> Play {BOTS.find((b) => b.id === botId)?.name}
         </button>
       </div>
     </div>
@@ -350,7 +351,7 @@ function LocalTab() {
             navigate('/local');
           }}
         >
-          <Ico src="/icons/local.svg" size={22} /> Start game
+          <Ico src="local" size={22} /> Start game
         </button>
       </div>
     </div>
@@ -358,10 +359,10 @@ function LocalTab() {
 }
 
 const TABS = [
-  { value: 'online', label: 'Online', icon: '/icons/online.svg' },
-  { value: 'friend', label: 'Friend', icon: '/icons/friends.svg' },
-  { value: 'bot', label: 'Bots', icon: '/icons/bots.svg' },
-  { value: 'local', label: 'Pass & play', icon: '/icons/local.svg' },
+  { value: 'online', label: 'Online', icon: 'online' as AppIconName },
+  { value: 'friend', label: 'Friend', icon: 'friends' as AppIconName },
+  { value: 'bot', label: 'Bots', icon: 'bots' as AppIconName },
+  { value: 'local', label: 'Pass & play', icon: 'local' as AppIconName },
 ] as const;
 
 export default function Play() {
@@ -372,13 +373,13 @@ export default function Play() {
 
   return (
     <PageShell>
-      <PageTitle title="Play UNO Chess" icon="/icons/cards.svg">
+      <PageTitle title="Play UNO Chess" icon="play">
         Choose how you’d like to play. Everything works as a guest — log in to play ranked.
       </PageTitle>
 
       {resumable && (
         <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="card-surface mb-6 flex items-center gap-4 p-4">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-mustard/30">♟</span>
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2"><PieceIcon code="wK" /></span>
           <div className="flex-1">
             <div className="font-extrabold">You have a game in progress</div>
             <div className="text-sm text-ink-soft">{local.setup!.mode === 'bot' ? `vs ${BOTS.find((b) => b.id === local.setup!.botId)?.name ?? 'bot'}` : 'Pass & play'}</div>

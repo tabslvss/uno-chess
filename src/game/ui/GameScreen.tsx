@@ -105,7 +105,7 @@ export function GameScreen({ c }: { c: GameController }) {
       }
       const reason = cardBlockReason(state, card);
       if (reason) {
-        toast(reason, { icon: '🃏' });
+        toast(reason);
         return;
       }
       if (card.kind === 'wild') setWildCard(card);
@@ -155,7 +155,7 @@ export function GameScreen({ c }: { c: GameController }) {
         className="btn-mustard !px-3 !py-1.5"
         data-testid="catch-uno"
         onClick={() => {
-          if (oppUno === 'needed') toast('Too early — they can still call it this turn!', { icon: '⏳' });
+          if (oppUno === 'needed') toast('Too early — they can still call it this turn!');
           else c.act({ type: 'catchUno' });
         }}
       >
@@ -566,7 +566,7 @@ function ResultDialog({ c, open, onClose }: { c: GameController; open: boolean; 
         : me === null || c.mode === 'local'
           ? `${c.seats[r.winner].name} wins!`
           : r.winner === me
-            ? 'You won! 🎉'
+            ? 'You won!'
             : 'You lost';
   const change = c.ratingChange && me ? c.ratingChange[me] : null;
   const delta = change ? change.after - change.before : 0;

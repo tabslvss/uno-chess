@@ -58,7 +58,7 @@ function LineDemo() {
 export default function Rules() {
   return (
     <PageShell>
-      <PageTitle title="How to play UNO Chess" icon="/icons/rules.svg">
+      <PageTitle title="How to play UNO Chess" icon="learn">
         Standard chess meets a slimmed-down UNO deck. Based on the variant by TripleSGames. Here’s everything you need — it takes two minutes.
       </PageTitle>
 

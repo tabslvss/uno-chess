@@ -3,6 +3,7 @@ import { LogOut, Menu, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router';
+import { AppIcon, type AppIconName } from '@/components/AppIcon';
 import { Avatar } from '@/components/Avatar';
 import { OptionalImg } from '@/components/OptionalImg';
 import { AvatarPicker, useRandomizeAvatar } from '@/components/AvatarPicker';
@@ -12,12 +13,12 @@ import { supabaseEnabled } from '@/lib/supabase';
 import { displayName, myAvatar, useAuth } from '@/stores/auth';
 import { applyTheme, useSettings } from '@/stores/settings';
 
-const NAV = [
-  { to: '/play', label: 'Play', icon: '/icons/cards.svg' },
-  { to: '/play?tab=bot', label: 'Bots', icon: '/icons/bots.svg' },
-  { to: '/play?tab=friend', label: 'Friends', icon: '/icons/friends.svg' },
-  { to: '/leaderboard', label: 'Leaderboard', icon: '/icons/leaderboard.svg' },
-  { to: '/rules', label: 'Learn', icon: '/icons/rules.svg' },
+const NAV: { to: string; label: string; icon: AppIconName }[] = [
+  { to: '/play', label: 'Play', icon: 'play' },
+  { to: '/play?tab=bot', label: 'Bots', icon: 'bots' },
+  { to: '/play?tab=friend', label: 'Friends', icon: 'friends' },
+  { to: '/leaderboard', label: 'Leaderboard', icon: 'leaderboard' },
+  { to: '/rules', label: 'Learn', icon: 'learn' },
 ];
 
 export function Wordmark({ className }: { className?: string }) {
@@ -42,7 +43,7 @@ function useIsDark() {
   return theme === 'dark' || (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 }
 
-function NavItem({ to, label, icon, compact, onClick }: { to: string; label: string; icon: string; compact?: boolean; onClick?: () => void }) {
+function NavItem({ to, label, icon, compact, onClick }: { to: string; label: string; icon: AppIconName; compact?: boolean; onClick?: () => void }) {
   const loc = useLocation();
   const [path, query] = to.split('?');
   const active = loc.pathname === path && (query ? loc.search.includes(query) : !loc.search.includes('tab=bot') && !loc.search.includes('tab=friend'));
@@ -56,7 +57,7 @@ function NavItem({ to, label, icon, compact, onClick }: { to: string; label: str
         compact && 'justify-center px-0',
       )}
     >
-      <img src={icon} alt="" width={26} height={26} className="h-[26px] w-[26px] transition group-hover:scale-110" />
+      <AppIcon name={icon} size={26} className="transition group-hover:scale-110" />
       {!compact && label}
     </NavLink>
   );
@@ -157,7 +158,7 @@ function ThemeRow({ compact }: { compact?: boolean }) {
       className={cn('flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-semibold text-ink-soft transition hover:bg-surface-2 hover:text-ink', compact && 'justify-center px-0')}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
-      <img src={dark ? '/icons/sun.svg' : '/icons/moon.svg'} alt="" width={20} height={20} />
+      <AppIcon name={dark ? 'sun' : 'moon'} size={20} />
       {!compact && (dark ? 'Light mode' : 'Dark mode')}
     </button>
   );
@@ -184,9 +185,9 @@ export function Sidebar({ compact, className }: { compact?: boolean; className?:
       <div className="mt-auto flex flex-col gap-1">
         <ThemeRow compact={compact} />
         {compact ? (
-          <NavItem to="/settings" label="Settings" icon="/icons/settings.svg" compact />
+          <NavItem to="/settings" label="Settings" icon="settings" compact />
         ) : (
-          <NavItem to="/settings" label="Settings" icon="/icons/settings.svg" />
+          <NavItem to="/settings" label="Settings" icon="settings" />
         )}
         <div className="mt-1 border-t border-line pt-2">
           <AccountArea compact={compact} />

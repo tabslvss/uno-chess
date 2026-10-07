@@ -366,7 +366,7 @@ export class GameRoom {
     const side = this.sideOf(key);
     if (!side) return { ok: false, error: 'Spectators can’t chat.' };
     const seat = this.data.seats[side]!;
-    if (now - seat.lastChatAt < CHAT_COOLDOWN_MS) return { ok: false, error: 'Slow down a little 🙂' };
+    if (now - seat.lastChatAt < CHAT_COOLDOWN_MS) return { ok: false, error: 'Slow down a little.' };
     seat.lastChatAt = now;
     return { ok: true, side, name: seat.id.name };
   }

@@ -195,7 +195,7 @@ Set the server secrets with `npx partykit env add <NAME>`: `PARTY_SECRET` (any l
 
 ## Art assets
 
-Sidebar icons come from Microsoft's MIT-licensed Fluent Emoji set. Optional higher-quality art (bot portraits, logo, a custom piece set) can be dropped into `public/` and is picked up automatically — see [docs/ASSET_PROMPTS.md](docs/ASSET_PROMPTS.md) for exact files, sizes and ready-to-use image-generation prompts.
+Interface icons, bot portraits, the logo and an optional custom piece set are drop-in PNGs in `public/` (plain line icons are shown until they exist) — see [docs/ASSET_PROMPTS.md](docs/ASSET_PROMPTS.md) for exact files, sizes and ready-to-use image-generation prompts.
 
 ## Credits
 

@@ -38,8 +38,8 @@ export default function BotGame() {
     const t = setTimeout(() => {
       const err = act(botSide, action);
       if (err) console.warn('[bot] rejected action', action, err);
-      if (action.type === 'catchUno') toast(`${bot.name} caught you without UNO!`, { icon: '🚨' });
-      if (action.type === 'callUno') toast(`${bot.name}: “UNO!”`, { icon: '📣' });
+      if (action.type === 'catchUno') toast(`${bot.name} caught you without UNO!`);
+      if (action.type === 'callUno') toast(`${bot.name} called UNO!`);
     }, delay);
     return () => clearTimeout(t);
   }, [state, botSide, bot, act, setup?.mode]);

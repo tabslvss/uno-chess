@@ -1,3 +1,4 @@
+import { AppIcon, type AppIconName } from '@/components/AppIcon';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -10,10 +11,10 @@ import { sampleLeaderboard, type LeaderboardRow } from '@/lib/sampleLeaderboard'
 import { supabase, supabaseEnabled } from '@/lib/supabase';
 import { useAuth } from '@/stores/auth';
 
-const CATS: { id: TimeCategory; label: string; icon: string }[] = [
-  { id: 'bullet', label: 'Bullet', icon: '/icons/bullet.svg' },
-  { id: 'blitz', label: 'Blitz', icon: '/icons/blitz.svg' },
-  { id: 'rapid', label: 'Rapid', icon: '/icons/rapid.svg' },
+const CATS: { id: TimeCategory; label: string; icon: AppIconName }[] = [
+  { id: 'bullet', label: 'Bullet', icon: 'bullet' },
+  { id: 'blitz', label: 'Blitz', icon: 'blitz' },
+  { id: 'rapid', label: 'Rapid', icon: 'rapid' },
 ];
 
 /** Live leaderboard, falling back to the built-in sample players when the table is empty or unreachable. */
@@ -57,7 +58,7 @@ export default function Leaderboard() {
 
   return (
     <PageShell>
-      <PageTitle title="Leaderboard" icon="/icons/leaderboard.svg">
+      <PageTitle title="Leaderboard" icon="leaderboard">
         Top rated players. Everyone starts at 1200 — win a few ranked games to climb.
       </PageTitle>
 
@@ -73,7 +74,7 @@ export default function Leaderboard() {
               cat === c.id ? 'bg-surface-2 text-ink' : 'text-ink-soft hover:bg-surface-2/60',
             )}
           >
-            <img src={c.icon} alt="" width={18} height={18} />
+            <AppIcon name={c.icon} size={18} />
             {c.label}
           </button>
         ))}

@@ -1,3 +1,4 @@
+import { AppIcon } from '@/components/AppIcon';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Avatar } from '@/components/Avatar';
@@ -50,11 +51,11 @@ export default function Home() {
           </p>
           <div className="mt-9 flex w-full max-w-sm flex-col gap-4">
             <Link to="/play" className="btn-primary btn-xl" data-testid="cta-play">
-              <img src="/icons/cards.svg" alt="" width={34} height={34} />
+              <AppIcon name="play" size={34} />
               Play Online
             </Link>
             <Link to="/play?tab=bot" className="btn-secondary btn-xl">
-              <img src="/icons/bots.svg" alt="" width={34} height={34} />
+              <AppIcon name="bots" size={34} />
               Play a Bot
             </Link>
           </div>
@@ -129,7 +130,7 @@ export default function Home() {
         <div className="card-surface overflow-hidden">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="flex items-center gap-2 font-display font-bold">
-              <img src="/icons/blitz.svg" alt="" width={20} height={20} /> Blitz leaders
+              <AppIcon name="blitz" size={20} /> Blitz leaders
             </span>
             <Link to="/leaderboard" className="text-sm font-bold text-brand hover:underline">
               View all

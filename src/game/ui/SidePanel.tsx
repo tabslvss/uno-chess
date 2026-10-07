@@ -94,7 +94,7 @@ export function ChatBox({ chat, onSend, me }: { chat: ChatLine[]; onSend?: (i: n
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="thin-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
-        {chat.length === 0 && <p className="p-3 text-center text-sm text-ink-faint">Say hi with a quick message 👋</p>}
+        {chat.length === 0 && <p className="p-3 text-center text-sm text-ink-faint">Say hi with a quick message.</p>}
         {chat.map((c) => (
           <div key={c.id} className={cn('flex', c.side === me ? 'justify-end' : 'justify-start')}>
             <div className={cn('max-w-[85%] rounded-2xl px-3 py-1.5 text-sm', c.side === me ? 'bg-brand text-white' : 'bg-surface-2')}>

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { cn } from '@/lib/cn';
+import { AppIcon, type AppIconName } from './AppIcon';
 import { MobileBar, Sidebar } from './Sidebar';
 
 export function PageShell({ children, wide, className }: { children: ReactNode; wide?: boolean; className?: string }) {
@@ -27,10 +28,10 @@ export function PageShell({ children, wide, className }: { children: ReactNode; 
   );
 }
 
-export function PageTitle({ title, children, icon }: { eyebrow?: string; title: ReactNode; children?: ReactNode; icon?: string }) {
+export function PageTitle({ title, children, icon }: { title: ReactNode; children?: ReactNode; icon?: AppIconName }) {
   return (
     <div className="mb-8 flex items-center gap-4">
-      {icon && <img src={icon} alt="" width={48} height={48} className="h-12 w-12" />}
+      {icon && <AppIcon name={icon} size={48} />}
       <div>
         <h1 className="text-3xl sm:text-4xl">{title}</h1>
         {children && <div className="mt-1 text-ink-soft">{children}</div>}

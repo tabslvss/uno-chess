@@ -34,13 +34,13 @@ export const authSchema = z.object({
 export type AuthPayload = z.infer<typeof authSchema>;
 
 export const QUICK_CHAT = [
-  'Good luck! 🍀',
+  'Good luck!',
   'Have fun!',
   'Nice move!',
-  'Wow 😮',
-  'Oops 😅',
+  'Wow!',
+  'Oops!',
   'Well played!',
-  'Good game! 🤝',
+  'Good game!',
   'Thanks!',
   'Rematch?',
 ] as const;

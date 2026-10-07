@@ -83,7 +83,7 @@ export default function SettingsPage() {
   const s = useSettings();
   return (
     <PageShell>
-      <PageTitle title="Settings" icon="/icons/settings.svg" />
+      <PageTitle title="Settings" icon="settings" />
       <div className="grid gap-5 lg:grid-cols-2">
         <Section title="Appearance">
           <div className="label mb-1.5">Theme</div>

@@ -36,7 +36,17 @@ export function useOnlineGame(gameId: string, create?: CreateOptions) {
     const socket = new PartySocket({ host, party: 'game', room: gameId });
     socketRef.current = socket;
     let opened = false;
+    let synced = false;
     let chatId = 0;
+    // If the server never answers (down, or running an outdated version), stop spinning.
+    const watchdog = setTimeout(() => {
+      if (!synced) {
+        console.warn('[online] no response from the game server at', host);
+        setFatal('Couldn’t reach the game server. Please try again in a minute.');
+        setStatus('closed');
+        socket.close();
+      }
+    }, 10_000);
 
     socket.addEventListener('open', async () => {
       setStatus('open');
@@ -66,6 +76,8 @@ export function useOnlineGame(gameId: string, create?: CreateOptions) {
       }
       switch (msg.t) {
         case 'sync':
+          synced = true;
+          clearTimeout(watchdog);
           setRoom(msg.room);
           setReceivedAt(performance.now());
           // Once the room exists, never ask to create it again on reconnect.
@@ -87,6 +99,7 @@ export function useOnlineGame(gameId: string, create?: CreateOptions) {
     }, 25_000);
 
     return () => {
+      clearTimeout(watchdog);
       clearInterval(ping);
       socket.close();
       socketRef.current = null;

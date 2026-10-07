@@ -18,6 +18,7 @@ export function useLobby(onMatched: (gameId: string) => void) {
   const [ready, setReady] = useState(false);
   const socketRef = useRef<PartySocket | null>(null);
   const pending = useRef<LobbyClientMessage | null>(null);
+  const joinTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchedRef = useRef(onMatched);
   matchedRef.current = onMatched;
   const userId = useAuth((s) => s.session?.user.id ?? null);
@@ -58,6 +59,7 @@ export function useLobby(onMatched: (gameId: string) => void) {
           setStats({ online: msg.online, queued: msg.queued, games: msg.games });
           break;
         case 'queued':
+          if (joinTimer.current) clearTimeout(joinTimer.current);
           setQueue({ kind: 'queued', mode: msg.mode, tc: msg.tc, since: Date.now(), size: msg.size });
           break;
         case 'matched':
@@ -89,6 +91,15 @@ export function useLobby(onMatched: (gameId: string) => void) {
       const msg: LobbyClientMessage = { t: 'queue', mode, tc };
       pending.current = msg;
       setQueue({ kind: 'joining', mode, tc });
+      if (joinTimer.current) clearTimeout(joinTimer.current);
+      joinTimer.current = setTimeout(() => {
+        setQueue((q) => {
+          if (q.kind !== 'joining') return q;
+          pending.current = null;
+          toast.error('Couldn’t reach the game server. Please try again in a minute.');
+          return { kind: 'idle' };
+        });
+      }, 10_000);
       const s = socketRef.current;
       if (s && s.readyState === WebSocket.OPEN && ready) s.send(JSON.stringify(msg));
     },

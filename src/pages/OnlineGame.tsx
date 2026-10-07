@@ -74,15 +74,22 @@ export default function OnlineGame() {
   if (fatal || status === 'unavailable' || status === 'closed') {
     return (
       <CenterCard>
-        <h1 className="font-display text-3xl font-bold">Hmm, no game here</h1>
+        <h1 className="font-display text-3xl font-bold">{fatal?.includes('game server') ? 'Can’t connect right now' : 'Hmm, no game here'}</h1>
         <p className="mt-2 text-ink-soft">
           {status === 'unavailable'
             ? 'Online play isn’t configured on this site yet (VITE_PARTYKIT_HOST).'
             : (fatal ?? 'This game is no longer available.')}
         </p>
-        <Link to="/play" className="btn-primary mt-6">
-          <Home size={16} /> Back to the lobby
-        </Link>
+        <div className="mt-6 flex gap-3">
+          {fatal?.includes('game server') && (
+            <button className="btn-primary" onClick={() => window.location.reload()}>
+              Try again
+            </button>
+          )}
+          <Link to="/play" className="btn-secondary">
+            <Home size={16} /> Back to the lobby
+          </Link>
+        </div>
       </CenterCard>
     );
   }

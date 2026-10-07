@@ -204,7 +204,7 @@ export function GameScreen({ c }: { c: GameController }) {
           </button>
         </Tip>
         <Link to="/" className="hidden items-center gap-2 sm:flex lg:hidden">
-          <img src="/logo.svg" alt="" className="h-7 w-7" />
+          <img src="/brand/logo-192.png" alt="" className="h-7 w-7" />
         </Link>
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate font-display text-base font-bold sm:text-lg">{c.title}</div>

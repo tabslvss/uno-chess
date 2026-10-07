@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { AppIcon, type AppIconName } from '@/components/AppIcon';
 import { Avatar } from '@/components/Avatar';
-import { OptionalImg } from '@/components/OptionalImg';
 import { AvatarPicker, useRandomizeAvatar } from '@/components/AvatarPicker';
 import { Tip } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -32,7 +31,7 @@ export function Wordmark({ className }: { className?: string }) {
 export function LogoLink({ compact }: { compact?: boolean }) {
   return (
     <Link to="/" className="flex items-center gap-2 px-1" aria-label="UNO Chess home">
-      <OptionalImg srcs={['/brand/logo.png', '/logo.svg']} alt="" width={34} height={34} className="h-[34px] w-[34px] object-contain" />
+      <img src="/brand/logo-192.png" alt="" width={34} height={34} className="h-[34px] w-[34px] object-contain" />
       {!compact && <Wordmark />}
     </Link>
   );

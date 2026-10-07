@@ -17,8 +17,7 @@ export function Avatar({
   className?: string;
   ring?: string;
 }) {
-  // Local art (bots) may have a higher-quality PNG dropped in next to the SVG.
-  const candidates = isLocalAvatar(url) ? (url!.endsWith('.svg') ? [url!.replace(/\.svg$/, '.png'), url!] : [url!]) : [avatarSrc(seed, url)];
+  const candidates = isLocalAvatar(url) ? [url!] : [avatarSrc(seed, url)];
   const key = candidates.join('|');
   const [failed, setFailed] = useState<{ key: string; n: number }>({ key, n: 0 });
   const n = failed.key === key ? failed.n : 0;

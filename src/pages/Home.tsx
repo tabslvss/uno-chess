@@ -101,7 +101,7 @@ export default function Home() {
                 className="group overflow-hidden rounded-xl bg-surface-2 transition hover:-translate-y-1"
               >
                 <OptionalImg
-                  srcs={[`/bots/${b.id}.png`, b.avatar]}
+                  srcs={[b.avatar]}
                   alt=""
                   className="aspect-square w-full object-cover transition group-hover:scale-105"
                 />

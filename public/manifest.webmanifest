@@ -4,10 +4,10 @@
   "description": "Play a card. Move a piece. Capture the king.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f6efe3",
-  "theme_color": "#d9734e",
+  "background_color": "#302e2b",
+  "theme_color": "#e5483b",
   "icons": [
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
-    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+    { "src": "/brand/logo-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/logo.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

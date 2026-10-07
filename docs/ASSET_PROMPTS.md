@@ -1,5 +1,7 @@
 # Art assets — image prompts
 
+> **Status:** icons, bot portraits and the logo are in (`public/icons`, `public/bots`, `public/brand`). Still optional: the custom chess piece set (section 4) and the extras (section 5).
+
 Every image below has a fixed **file name**. Generate it in ChatGPT, name it exactly as shown and send it over
 (or drop it at the path yourself) — the site picks each file up automatically and falls back to plain
 placeholders until then.

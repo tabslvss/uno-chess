@@ -18,7 +18,7 @@ export const BOTS: BotPersona[] = [
     level: 0,
     rating: 400,
     tagline: 'Just happy to be here. Forgets to say UNO a lot.',
-    avatar: '/bots/pebble.svg',
+    avatar: '/bots/pebble.webp',
     accent: '#7fb069',
   },
   {
@@ -27,7 +27,7 @@ export const BOTS: BotPersona[] = [
     level: 1,
     rating: 900,
     tagline: 'Loves a capture. Sometimes leaves the door open.',
-    avatar: '/bots/biscuit.svg',
+    avatar: '/bots/biscuit.webp',
     accent: '#e6a23c',
   },
   {
@@ -36,7 +36,7 @@ export const BOTS: BotPersona[] = [
     level: 2,
     rating: 1400,
     tagline: 'Counts the cards and guards the king.',
-    avatar: '/bots/sage.svg',
+    avatar: '/bots/sage.webp',
     accent: '#5b8def',
   },
   {
@@ -45,7 +45,7 @@ export const BOTS: BotPersona[] = [
     level: 3,
     rating: 1800,
     tagline: 'Knows exactly what you’re holding. Probably.',
-    avatar: '/bots/dealer.svg',
+    avatar: '/bots/dealer.webp',
     accent: '#c0392b',
   },
 ];

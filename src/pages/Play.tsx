@@ -16,7 +16,6 @@ import { newRoomId, onlineEnabled } from '@/net/config';
 import { useLobby } from '@/net/useLobby';
 import { displayName, myAvatar, ratingFor, useAuth } from '@/stores/auth';
 import { Avatar } from '@/components/Avatar';
-import { OptionalImg } from '@/components/OptionalImg';
 import { useLocalGame } from '@/stores/localGame';
 import { supabaseEnabled } from '@/lib/supabase';
 
@@ -189,7 +188,7 @@ function OnlineTab() {
                 transition={{ duration: 2, repeat: Infinity, delay: i * 0.66 }}
               />
             ))}
-            <img src="/logo.svg" alt="" className="absolute inset-6 animate-wiggle" />
+            <img src="/brand/logo-192.png" alt="" className="absolute inset-6 animate-wiggle" />
           </div>
           <p className="font-extrabold">
             {ranked ? 'Ranked' : 'Casual'} · {control.label}
@@ -292,7 +291,7 @@ function BotTab() {
             )}
           >
             <motion.div animate={botId === b.id ? { rotate: [0, -6, 6, 0] } : {}}>
-              <OptionalImg srcs={[`/bots/${b.id}.png`, b.avatar]} alt="" className="h-20 w-20 rounded-xl object-cover" />
+              <img src={b.avatar} alt="" className="h-20 w-20 rounded-xl object-cover" />
             </motion.div>
             <span className="mt-2 font-display text-lg font-bold">{b.name}</span>
             <span className="chip mt-1 text-white" style={{ background: b.accent }}>
